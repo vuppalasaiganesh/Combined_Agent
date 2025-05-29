@@ -22,6 +22,11 @@ from docx import Document
 from bs4 import BeautifulSoup
 import pyarrow.parquet as pq
 import uuid
+from datetime import datetime
+from io import StringIO
+import zipfile
+import shutil
+import tempfile
 
 # Load environment variables
 load_dotenv()
@@ -38,7 +43,7 @@ AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
 S3_MODIFIED_BUCKET_NAME = os.getenv("S3_MODIFIED_BUCKET_NAME", "my-modified-bucket-2025")
 PROCESSING_BATCH_SIZE = int(os.getenv("PROCESSING_BATCH_SIZE", 1000))
-PROCESSING_INTERVAL = int(os.getenv("PROCESSING_INTERVAL", 5))
+PROCESSING_INTERVAL = int(os.getenv("PROCESSING_INTERVAL", 1))
 
 # Validate environment variables
 required_vars = ["SNOW_URL", "SNOW_USER", "SNOW_PASS", "GMAIL_ADDRESS", "MANAGER_EMAIL", "GEMINI_API_KEY",
@@ -65,22 +70,52 @@ QUERIED_DATA_FILE = os.path.join(DATA_DIR, 'queried_transactions.csv')
 CHANGE_LOG_FILE = os.path.join(BASE_DIR, 'logs', 'change_log.txt')
 SOLUTIONS_FILE = os.path.join(BASE_DIR, 'logs', 'solutions.json')
 
-# Logging setup
-logging.basicConfig(filename=LOG_FILE, level=logging.INFO, format='%(asctime)s: %(message)s')
+# Ensure directories exist
+os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
+os.makedirs(os.path.dirname(TICKET_IDS_FILE), exist_ok=True)
+os.makedirs(os.path.dirname(SOLUTIONS_FILE), exist_ok=True)
+
+
+# Custom logging formatter to add separator line
+class CustomFormatter(logging.Formatter):
+    def format(self, record):
+        message = super().format(record)
+        return f"{message}\n----------------------------------------"
+
+
+# Logging setup for combined_log.txt
+logging.basicConfig(
+    filename=LOG_FILE,
+    level=logging.INFO,
+    format='%(asctime)s: %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S,%f'
+)
+combined_logger = logging.getLogger()
+for handler in combined_logger.handlers[:]:
+    combined_logger.removeHandler(handler)
+combined_handler = logging.FileHandler(LOG_FILE)
+combined_handler.setFormatter(CustomFormatter('%(asctime)s: %(message)s', datefmt='%Y-%m-%d %H:%M:%S,%f'))
+combined_logger.addHandler(combined_handler)
+combined_logger.setLevel(logging.INFO)
+
+# Logging setup for change_log.txt
 change_logger = logging.getLogger('change_logger')
 change_handler = logging.FileHandler(CHANGE_LOG_FILE)
-change_handler.setFormatter(logging.Formatter('%(asctime)s: %(message)s'))
+change_handler.setFormatter(CustomFormatter('%(asctime)s: %(message)s', datefmt='%Y-%m-%d %H:%M:%S,%f'))
 change_logger.addHandler(change_handler)
 change_logger.setLevel(logging.INFO)
 
 
 def log_action(message):
-    logging.info(message)
-    print(message)
+    # Ensure message is a string to avoid formatting issues
+    safe_message = str(message).replace('%', '%%')  # Escape % characters
+    combined_logger.info(safe_message)
+    print(safe_message)
 
 
 def log_change(message):
-    change_logger.info(message)
+    safe_message = str(message).replace('%', '%%')
+    change_logger.info(safe_message)
 
 
 # Gmail API setup
@@ -145,7 +180,8 @@ WORKFLOWS = {
         "team": "Data Quality Team"
     },
     "incorrect_date_format": {
-        "detect": lambda df: not pd.to_datetime(df['transaction_date'], errors='coerce').notnull().all(),
+        "detect": lambda df: 'transaction_date' in df.columns and not pd.to_datetime(df['transaction_date'],
+                                                                                     errors='coerce').notnull().all(),
         "solution": [{"step": "Convert transaction_date to datetime", "action": "fix_date"}],
         "priority": "normal",
         "resolvable": True,
@@ -159,14 +195,15 @@ WORKFLOWS = {
         "team": "Data Quality Team"
     },
     "outlier_amounts": {
-        "detect": lambda df: (df['amount'] > df['amount'].quantile(0.99) * 2).any(),
+        "detect": lambda df: 'amount' in df.columns and (
+                    pd.to_numeric(df['amount'], errors='coerce') > df['amount'].quantile(0.99) * 2).any(),
         "solution": [{"step": "Flag outlier amounts for review", "action": "flag_outliers"}],
         "priority": "high",
         "resolvable": True,
         "team": "Fraud Detection Team"
     },
     "compliance_violation": {
-        "detect": lambda df: df['transaction_type'].isnull().any(),
+        "detect": lambda df: 'transaction_type' in df.columns and df['transaction_type'].isnull().any(),
         "solution": [{"step": "Set default transaction_type to Unknown", "action": "set_default_type"}],
         "priority": "critical",
         "resolvable": True,
@@ -251,17 +288,74 @@ def send_approval_email(service, ticket_number, subject, description):
         log_action(f"Error sending approval email: {e}")
 
 
+def send_incident_notification_email(service, ticket_number, subject, description, team, priority):
+    try:
+        log_action(f"Sending incident notification email for ticket {ticket_number} to {MANAGER_EMAIL}")
+        message = MIMEText(
+            f"New Incident Created:\n"
+            f"Ticket Number: {ticket_number}\n"
+            f"Title: {subject}\n"
+            f"Description: {description}\n"
+            f"Assigned To: {team}\n"
+            f"Priority: {priority}\n\n"
+            f"Please review and take necessary action."
+        )
+        message['From'] = GMAIL_ADDRESS
+        message['To'] = MANAGER_EMAIL
+        message['Subject'] = f"New Incident Notification: {ticket_number}"
+        raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
+        service.users().messages().send(
+            userId='me',
+            body={'raw': raw_message}
+        ).execute()
+        log_action(f"Sent incident notification email for ticket {ticket_number} to {MANAGER_EMAIL}")
+    except Exception as e:
+        log_action(f"Error sending incident notification email: {e}")
+
+
+def send_fraud_alert(service, transaction_details):
+    try:
+        log_action(f"Preparing fraud alert for {transaction_details['transaction_id']} to {MANAGER_EMAIL}")
+        message = MIMEText(
+            f"Fraud Alert Detected:\n"
+            f"Transaction ID: {transaction_details['transaction_id']}\n"
+            f"Date: {transaction_details['transaction_date']}\n"
+            f"Amount: {transaction_details['amount']}\n"
+            f"Merchant: {transaction_details['merchant_name']}\n"
+            f"Action Required: Review immediately."
+        )
+        message['From'] = GMAIL_ADDRESS
+        message['To'] = MANAGER_EMAIL
+        message['Subject'] = f"URGENT: Fraud Detected - {transaction_details['transaction_id']}"
+        raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
+        log_action(f"Sending fraud alert for {transaction_details['transaction_id']}")
+        service.users().messages().send(
+            userId='me',
+            body={'raw': raw_message}
+        ).execute()
+        log_action(f"Sent fraud alert for {transaction_details['transaction_id']} to {MANAGER_EMAIL}")
+    except Exception as e:
+        log_action(f"Error sending fraud alert: {e}")
+
+
 def analyze_data(df):
     issues = []
     for issue, workflow in WORKFLOWS.items():
-        if workflow["detect"](df):
-            issues.append({
-                "issue": issue,
-                "solution": workflow["solution"],
-                "priority": workflow["priority"],
-                "resolvable": workflow["resolvable"],
-                "team": workflow["team"]
-            })
+        log_action(f"Checking for {issue} in data...")
+        try:
+            if workflow["detect"](df):
+                issues.append({
+                    "issue": issue,
+                    "solution": workflow["solution"],
+                    "priority": workflow["priority"],
+                    "resolvable": workflow["resolvable"],
+                    "team": workflow["team"]
+                })
+                log_action(f"Detected {issue} in data.")
+        except KeyError as e:
+            log_action(f"Skipping {issue} due to missing column: {e}")
+        except Exception as e:
+            log_action(f"Error checking {issue}: {e}")
     if not issues and model:
         prompt = f"""
         Analyze this financial dataset summary: {df.to_string()}
@@ -286,7 +380,7 @@ def analyze_data(df):
     return issues
 
 
-def resolve_issue(df, issue):
+def resolve_issue(df, issue, service):
     original_df = df.copy()
     solution = issue["solution"]
     log_action(f"Attempting to resolve issue: {issue['issue']}")
@@ -295,42 +389,48 @@ def resolve_issue(df, issue):
     for step in solution:
         action = step.get("action")
         if action == "fill_median_amount":
-            if pd.to_numeric(df['amount'], errors='coerce').isna().any():
+            if 'amount' in df.columns and pd.to_numeric(df['amount'], errors='coerce').isna().any():
                 log_action("Invalid amount data detected, skipping fill_median_amount")
                 return df, False
             median_amount = df['amount'].median()
             modified_indices.extend(df[df['amount'].isnull()].index.tolist())
-            df['amount'].fillna(median_amount, inplace=True)
+            df['amount'] = df['amount'].fillna(median_amount)
         elif action == "fix_date":
-            modified_indices.extend(df[pd.to_datetime(df['transaction_date'], errors='coerce').isnull()].index.tolist())
-            df['transaction_date'] = pd.to_datetime(df['transaction_date'], errors='coerce')
+            if 'transaction_date' in df.columns:
+                modified_indices.extend(
+                    df[pd.to_datetime(df['transaction_date'], errors='coerce').isnull()].index.tolist())
+                df['transaction_date'] = pd.to_datetime(df['transaction_date'], errors='coerce')
         elif action == "drop_duplicates":
             duplicates = df.duplicated(subset=['transaction_id'])
             modified_indices.extend(df[duplicates].index.tolist())
             df.drop_duplicates(subset=['transaction_id'], inplace=True)
         elif action == "flag_outliers":
-            if pd.to_numeric(df['amount'], errors='coerce').isna().any():
+            if 'amount' in df.columns and pd.to_numeric(df['amount'], errors='coerce').isna().any():
                 log_action("Invalid amount data detected, skipping flag_outliers")
                 return df, False
             outliers = df['amount'] > df['amount'].quantile(0.99) * 2
             modified_indices.extend(df[outliers].index.tolist())
             df['outlier_flag'] = outliers
         elif action == "set_default_type":
-            missing_type = df['transaction_type'].isnull()
-            modified_indices.extend(df[missing_type].index.tolist())
-            df['transaction_type'].fillna('Unknown', inplace=True)
+            if 'transaction_type' in df.columns:
+                missing_type = df['transaction_type'].isnull()
+                modified_indices.extend(df[missing_type].index.tolist())
+                df['transaction_type'] = df['transaction_type'].fillna('Unknown')
         elif action == "flag_fraud":
-            if pd.to_numeric(df['amount'], errors='coerce').isna().any():
+            if 'amount' in df.columns and pd.to_numeric(df['amount'], errors='coerce').isna().any():
                 log_action("Invalid amount data detected, skipping flag_fraud")
                 return df, False
             fraud = df['amount'] > 10000
             modified_indices.extend(df[fraud].index.tolist())
             df['fraud_flag'] = fraud
+            for index in modified_indices:
+                if df.at[index, 'fraud_flag']:
+                    transaction_details = df.loc[index].to_dict()
+                    send_fraud_alert(service, transaction_details)
         else:
             log_action(f"Unknown action {action}, skipping")
             return df, False
 
-    # Log changes
     if modified_indices:
         df['modified'] = False
         df.loc[modified_indices, 'modified'] = True
@@ -395,7 +495,7 @@ def upload_to_modified_s3(df, original_file_key):
         elif file_extension in ['.parquet']:
             df.to_parquet(local_path)
         else:
-            df.to_csv(local_path, index=False)  # Default to CSV for unsupported formats
+            df.to_csv(local_path, index=False)
 
         s3_client.upload_file(local_path, S3_MODIFIED_BUCKET_NAME, modified_file_key)
         log_action(f"Uploaded modified data to s3://{S3_MODIFIED_BUCKET_NAME}/{modified_file_key}")
@@ -410,7 +510,7 @@ def read_file(file_path):
 
     try:
         if file_extension in ['.csv']:
-            return pd.read_csv(file_path)
+            return pd.read_csv(file_path, on_bad_lines='skip')
         elif file_extension in ['.json']:
             with open(file_path, 'r') as f:
                 data = json.load(f)
@@ -425,7 +525,10 @@ def read_file(file_path):
             with open(file_path, 'r') as f:
                 soup = BeautifulSoup(f, 'html.parser')
                 table = soup.find('table')
-                return pd.read_html(str(table))[0] if table else pd.DataFrame()
+                if table:
+                    html_str = str(table)
+                    return pd.read_html(StringIO(html_str))[0]
+                return pd.DataFrame()
         elif file_extension in ['.docx']:
             doc = Document(file_path)
             data = [p.text.split(',') for p in doc.paragraphs if ',' in p.text]
@@ -456,173 +559,251 @@ def download_s3_file(file_key):
     os.makedirs(os.path.dirname(local_path), exist_ok=True)
     s3_client.download_file(S3_BUCKET_NAME, file_key, local_path)
     log_action(f"Downloaded {file_key} to {local_path}")
+
+    # Check if the file is a zip file
+    file_extension = os.path.splitext(file_key)[1].lower()
+    if file_extension == '.zip':
+        # Create a temporary directory for extraction
+        temp_dir = tempfile.mkdtemp(dir=DATA_DIR)
+        try:
+            with zipfile.ZipFile(local_path, 'r') as zip_ref:
+                zip_ref.extractall(temp_dir)
+                log_action(f"Extracted {file_key} to {temp_dir}")
+            # Remove the original zip file
+            os.remove(local_path)
+            return temp_dir
+        except Exception as e:
+            log_action(f"Error extracting zip file {file_key}: {e}")
+            shutil.rmtree(temp_dir, ignore_errors=True)
+            return None
     return local_path
+
+
+def append_to_solutions_file(issue_id, solution_data):
+    try:
+        os.makedirs(os.path.dirname(SOLUTIONS_FILE), exist_ok=True)
+        existing_solutions = {}
+        if os.path.exists(SOLUTIONS_FILE):
+            with open(SOLUTIONS_FILE, 'r') as f:
+                existing_solutions = json.load(f)
+
+        # Append new solution with separator
+        existing_solutions[issue_id] = solution_data
+        with open(SOLUTIONS_FILE, 'w') as f:
+            # Write all entries with a separator after each
+            result = {}
+            for i, (id_key, data) in enumerate(existing_solutions.items()):
+                result[id_key] = data
+                if i < len(existing_solutions) - 1:
+                    result[f"separator_{id_key}"] = "----------------------------------------"
+            json.dump(result, f, indent=2)
+        log_action(f"Appended solution for issue ID {issue_id} to {SOLUTIONS_FILE}")
+    except Exception as e:
+        log_action(f"Error appending to solutions file: {e}")
 
 
 def process_data():
     service = get_gmail_service()
     if not service:
-        log_action("Failed to initialize Gmail service, exiting.")
-        return
+        log_action("Failed to initialize Gmail service, skipping email features.")
+        service = None
 
     try:
-        # Check S3 for latest files
         files = get_latest_s3_files()
         if not files:
             log_action("No new files to process")
             return
 
-        for file_key in files[:PROCESSING_BATCH_SIZE]:  # Process batch of files
+        for file_key in files[:PROCESSING_BATCH_SIZE]:
             os.environ['LATEST_FILE_KEY'] = file_key
-            local_file = download_s3_file(file_key)
-            if not os.path.exists(local_file):
-                log_action(f"Failed to download {file_key}")
+            local_path = download_s3_file(file_key)
+            if not local_path:
+                log_action(f"Failed to process {file_key}")
                 continue
 
-            # Read data based on file type
-            df = read_file(local_file)
-            if df.empty:
-                log_action(f"Empty or invalid data from {file_key}, skipping")
-                continue
-
-            # Validate data types
-            if 'amount' in df.columns and not pd.to_numeric(df['amount'], errors='coerce').notna().all():
-                log_action(f"Invalid amount data in {file_key}, flagging for review")
-                df['amount'] = pd.to_numeric(df['amount'], errors='coerce')
-            if 'transaction_date' in df.columns:
-                df['transaction_date'] = pd.to_datetime(df['transaction_date'], errors='coerce')
-
-            log_action(f"Initial data from {file_key}:\n{df.head().to_string()}")
-
-            # Initialize modified flag
-            if 'modified' not in df.columns:
-                df['modified'] = False
-            if 'fraud_flag' not in df.columns:
-                df['fraud_flag'] = False
-            if 'outlier_flag' not in df.columns:
-                df['outlier_flag'] = False
-
-            # Mask sensitive data
-            df = mask_sensitive_data(df)
-
-            # Analyze for issues
-            issues = analyze_data(df)
-            unresolved_issues = []
-
-            if not issues:
-                log_action(f"No issues found in data from {file_key}")
-                load_to_warehouse(df)
+            # Check if the path is a directory (from a zip file)
+            if os.path.isdir(local_path):
+                extracted_files = [os.path.join(local_path, f) for f in os.listdir(local_path) if
+                                   os.path.isfile(os.path.join(local_path, f))]
+                log_action(f"Found {len(extracted_files)} files in extracted zip {file_key}")
+                if not extracted_files:
+                    log_action(f"No valid files found in zip {file_key}, skipping")
+                    shutil.rmtree(local_path, ignore_errors=True)
+                    continue
             else:
-                # Load existing ticket IDs
-                existing_tickets = set()
-                if os.path.exists(TICKET_IDS_FILE):
-                    with open(TICKET_IDS_FILE, 'r') as f:
-                        for line in f:
-                            line = line.strip()
-                            if line and ' - ' in line:
-                                ticket_number = line.split(' - ')[-1]
-                                existing_tickets.add(ticket_number)
+                extracted_files = [local_path]
 
-                for issue in issues:
-                    issue_name = issue["issue"]
-                    priority = issue["priority"]
-                    resolvable = issue["resolvable"]
-                    team = issue["team"]
+            for extracted_file in extracted_files:
+                file_name = os.path.basename(extracted_file)
+                df = read_file(extracted_file)
+                if df.empty:
+                    log_action(f"Empty or invalid data from {file_name}, skipping")
+                    continue
 
-                    # Attempt to resolve the issue
-                    df, resolved = resolve_issue(df, issue)
+                if 'amount' in df.columns and not pd.to_numeric(df['amount'], errors='coerce').notna().all():
+                    log_action(f"Invalid amount data in {file_name}, flagging for review")
+                    df['amount'] = pd.to_numeric(df['amount'], errors='coerce')
+                if 'transaction_date' in df.columns:
+                    df['transaction_date'] = pd.to_datetime(df['transaction_date'], errors='coerce')
 
-                    if resolved:
-                        log_action(f"Issue {issue_name} resolved automatically in {file_key}")
-                    else:
-                        unresolved_issues.append(issue)
-                        log_action(f"Issue {issue_name} could not be resolved in {file_key}")
+                log_action(f"Initial data from {file_name}:\n{df.head().to_string()}")
 
-            # Load to data warehouse
-            load_to_warehouse(df)
-            log_action(f"Processed data from {file_key} loaded to warehouse")
+                if 'modified' not in df.columns:
+                    df['modified'] = False
+                if 'fraud_flag' not in df.columns:
+                    df['fraud_flag'] = False
+                if 'outlier_flag' not in df.columns:
+                    df['outlier_flag'] = False
 
-            # Upload modified data to separate S3 bucket
-            upload_to_modified_s3(df, file_key)
+                df = mask_sensitive_data(df)
 
-            # Handle unresolved issues
-            if unresolved_issues:
-                solutions = {}
-                for issue in unresolved_issues:
-                    issue_name = issue["issue"]
-                    priority = issue["priority"]
-                    team = issue["team"]
-                    subject = f"Capital One Unresolved Data Issue: {issue_name} from {file_key}"
-                    description = f"Unable to resolve issue in transaction data from {file_key}: {issue_name}\nData:\n{df.to_string()}"
+                issues = analyze_data(df)
+                unresolved_issues = []
 
-                    if priority == "critical":
-                        send_approval_email(service, "Pending", subject, description)
-                        log_action(f"Critical issue {issue_name} reported to manager from {file_key}")
-                    else:
-                        ticket_id, ticket_number = create_ticket("incident", subject, description, priority, team)
-                        if not ticket_number:
-                            log_action(f"Failed to create ticket for {issue_name} from {file_key}")
-                            continue
-                        if ticket_number in existing_tickets:
-                            log_action(f"Skipping duplicate ticket number: {ticket_number} for {file_key}")
-                            continue
+                if not issues:
+                    log_action(f"No issues found in data from {file_name}")
+                    load_to_warehouse(df)
+                else:
+                    existing_tickets = set()
+                    if os.path.exists(TICKET_IDS_FILE):
+                        with open(TICKET_IDS_FILE, 'r') as f:
+                            for line in f:
+                                line = line.strip()
+                                if line and ' - ' in line and not line.startswith('---'):
+                                    ticket_number = line.split(' - ')[-1]
+                                    existing_tickets.add(ticket_number)
 
-                        with open(TICKET_IDS_FILE, 'a') as f:
-                            f.write(f"{subject} - {ticket_number}\n")
+                    for issue in issues:
+                        issue_name = issue["issue"]
+                        priority = issue["priority"]
+                        resolvable = issue["resolvable"]
+                        team = issue["team"]
 
-                        update_ticket("incident", ticket_number, "In Progress", f"Assigned to {team} for resolution",
-                                      priority)
+                        df, resolved = resolve_issue(df, issue, service)
 
-                        # Simulate manual resolution
-                        if issue_name == "potential_fraud":
-                            df['fraud_flag'] = df['amount'] > 10000
-                            modified_indices = df[df['amount'] > 10000].index.tolist()
-                            df.loc[modified_indices, 'modified'] = True
-                            log_change(
-                                f"File: {file_key}, Manual resolution for ticket {ticket_number}: Flagged potential fraud\nModified rows:\n{df.loc[modified_indices].to_string()}")
+                        if resolved:
+                            log_action(f"Issue {issue_name} resolved automatically in {file_name}")
                         else:
-                            unresolved_rows = df[df['modified'] == False]
-                            log_change(
-                                f"File: {file_key}, Unresolved rows for ticket {ticket_number}:\n{unresolved_rows.to_string()}")
+                            unresolved_issues.append(issue)
+                            log_action(f"Issue {issue_name} could not be resolved in {file_name}")
 
-                        update_ticket("incident", ticket_number, "Resolved",
-                                      f"Resolved by {team}: {json.dumps(issue, indent=2)}", priority)
+                load_to_warehouse(df)
+                log_action(f"Processed data from {file_name} loaded to warehouse")
+                upload_to_modified_s3(df, file_name)
 
-                    # Log possible solutions for unresolved issues
-                    if not resolved:
-                        issue_id = str(uuid.uuid4())
-                        prompt = f"""
-                        Provide possible manual steps to resolve the issue: {issue_name} in this dataset: {df.to_string()}
-                        Return in JSON format:
-                        - issue_id: {issue_id}
-                        - issue: {issue_name}
-                        - reason_unresolved: Why the AI couldn't resolve it
-                        - steps: Array of manual steps (e.g., [{"step": "Review with team", "details": "Check customer ID"}])
-                        - timestamp: Current timestamp in ISO format
-                        - file_reference: {file_key}
-                        """
-                        try:
-                            response = call_gemini_with_retry(prompt)
-                            text = response.text.strip()
-                            if text.startswith('```json'):
-                                text = text[7:].rstrip('```').strip()
-                            solution = json.loads(text)
-                            solutions[issue_id] = solution
+                if unresolved_issues:
+                    for issue in unresolved_issues:
+                        issue_name = issue["issue"]
+                        priority = issue["priority"]
+                        team = issue["team"]
+                        subject = f"Capital One Unresolved Data Issue: {issue_name} from {file_name}"
+                        # Safely handle the description to avoid format specifier issues
+                        description = (
+                            f"Unable to resolve issue in transaction data from {file_name}: {issue_name}\n"
+                            f"Data:\n{str(df.to_string()).replace('%', '%%')}"
+                        )
+
+                        if priority == "critical" and service:
+                            send_approval_email(service, "Pending", subject, description)
+                            log_action(f"Critical issue {issue_name} reported to manager from {file_name}")
+                        else:
+                            ticket_id, ticket_number = create_ticket("incident", subject, description, priority, team)
+                            if not ticket_number:
+                                log_action(f"Failed to create ticket for {issue_name} from {file_name}")
+                                continue
+                            if ticket_number in existing_tickets:
+                                log_action(f"Skipping duplicate ticket number: {ticket_number} for {file_name}")
+                                continue
+
+                            # Write to ticket_ids.txt immediately
+                            timestamp = datetime.now().isoformat()
+                            try:
+                                with open(TICKET_IDS_FILE, 'a') as f:
+                                    f.write(f"{timestamp} - {subject} - {ticket_number}\n")
+                                    f.write("----------------------------------------\n")
+                                log_action(f"Logged ticket {ticket_number} to {TICKET_IDS_FILE}")
+                            except Exception as e:
+                                log_action(f"Error writing to ticket_ids.txt: {e}")
+
+                            # Immediate solution entry in solutions.json
+                            issue_id = str(uuid.uuid4())
+                            problem_description = (
+                                f"The agent could not automatically resolve the '{issue_name}' issue due to "
+                                f"missing authority to modify critical financial data. Affected rows include those "
+                                f"with missing or invalid values in {file_name}."
+                            )
+                            prompt = f"""Provide clear instructions to manually resolve the issue: {issue_name} in this dataset: {df.to_string()}
+Return in JSON format:
+- issue_id: {issue_id}
+- problem_description: Description of the issue the AI couldn't resolve
+- manual_solution: Array of steps to fix it manually (e.g., [{{"step": "Review missing data", "details": "Check transaction_id and amount"}}]) if known, or
+- possible_resolutions: Array of possible steps if the solution is uncertain
+- timestamp: Current timestamp in ISO format
+- file_reference: {file_name}
+- ticket_number: {ticket_number}
+"""
+                            try:
+                                response = call_gemini_with_retry(prompt)
+                                text = response.text.strip()
+                                if text.startswith('```json'):
+                                    text = text[7:].rstrip('```').strip()
+                                solution_data = json.loads(text)
+                                log_action(
+                                    f"Generated solution for {issue_name} (ID: {issue_id}): {json.dumps(solution_data, indent=2)}")
+                                append_to_solutions_file(issue_id, solution_data)
+                            except Exception as e:
+                                log_action(f"Error generating solution for {issue_name} from {file_name}: {e}")
+                                # Fallback solution if Gemini fails
+                                fallback_solution = {
+                                    "issue_id": issue_id,
+                                    "problem_description": problem_description,
+                                    "possible_resolutions": [
+                                        {"step": "Consult the Data Quality Team",
+                                         "details": "Review the dataset for missing values and decide on imputation or correction."},
+                                        {"step": "Update the dataset manually",
+                                         "details": "Apply approved changes and re-upload to S3."}
+                                    ],
+                                    "timestamp": datetime.now().isoformat(),
+                                    "file_reference": file_name,
+                                    "ticket_number": ticket_number
+                                }
+                                append_to_solutions_file(issue_id, fallback_solution)
+
+                            # Immediate response after incident creation
                             log_action(
-                                f"Logged solution for {issue_name} (ID: {issue_id}) in solutions.json from {file_key}")
-                        except Exception as e:
-                            log_action(f"Error generating solution for {issue_name} from {file_key}: {e}")
+                                "Incident Created:\n"
+                                f"Ticket Number: {ticket_number}\n"
+                                f"Title: {subject}\n"
+                                f"Description: {description}\n"
+                                f"Assigned To: {team}\n"
+                                f"Priority: {priority}"
+                            )
+                            if service:
+                                send_incident_notification_email(service, ticket_number, subject, description, team,
+                                                                 priority)
 
-                if solutions:
-                    existing_solutions = {}
-                    if os.path.exists(SOLUTIONS_FILE):
-                        with open(SOLUTIONS_FILE, 'r') as f:
-                            existing_solutions = json.load(f)
-                    existing_solutions.update(solutions)
-                    with open(SOLUTIONS_FILE, 'w') as f:
-                        json.dump(existing_solutions, f, indent=2)
+                            update_ticket("incident", ticket_number, "In Progress",
+                                          f"Assigned to {team} for resolution", priority)
 
-            # Execute SQL query and save results
+                            if issue_name == "potential_fraud":
+                                df['fraud_flag'] = df['amount'] > 10000
+                                modified_indices = df[df['amount'] > 10000].index.tolist()
+                                df.loc[modified_indices, 'modified'] = True
+                                log_change(
+                                    f"File: {file_name}, Manual resolution for ticket {ticket_number}: Flagged potential fraud\nModified rows:\n{df.loc[modified_indices].to_string()}")
+                            else:
+                                unresolved_rows = df[df['modified'] == False]
+                                log_change(
+                                    f"File: {file_name}, Unresolved rows for ticket {ticket_number}:\n{unresolved_rows.to_string()}")
+
+                            update_ticket("incident", ticket_number, "Resolved",
+                                          f"Resolved by {team}: {json.dumps(issue, indent=2)}", priority)
+
+            # Clean up extracted directory if it exists
+            if os.path.isdir(local_path):
+                shutil.rmtree(local_path, ignore_errors=True)
+                log_action(f"Cleaned up temporary directory {local_path}")
+
             query = "SELECT * FROM transactions WHERE amount > 5000 OR fraud_flag = 1"
             queried_df = execute_sql_query(query)
             if queried_df is not None and not queried_df.empty:
@@ -630,14 +811,24 @@ def process_data():
 
     except Exception as e:
         log_action(f"Error processing data: {e}")
+        if 'df' in locals():
+            load_to_warehouse(df)
+            upload_to_modified_s3(df, os.getenv('LATEST_FILE_KEY', 'unknown'))
 
 
 def main():
     log_action("Starting CombinedAgent for Capital One...")
+    log_action("Forcing initial run of process_data...")
+    process_data()
+
     schedule.every(PROCESSING_INTERVAL).minutes.do(process_data)
+    log_action(
+        f"Scheduled process_data to run every {PROCESSING_INTERVAL} minute(s). Next run at: {schedule.next_run()}")
+
     while True:
         schedule.run_pending()
-        time.sleep(60)
+        log_action(f"Checking schedule... Next run at: {schedule.next_run()}")
+        time.sleep(10)
 
 
 if __name__ == "__main__":
