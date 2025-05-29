@@ -1,0 +1,28 @@
+# Python virtual environment
+.venv/
+__pycache__/
+*.pyc
+
+# Environment variables
+.env
+
+# Credentials and tokens
+credentials.json
+token.pickle
+
+# Logs and change history
+logs/
+*.log
+change_log.txt
+combined_log.txt
+
+# Data files (processed, sensitive, and sample)
+*.csv
+*.zip
+*.html
+*.db
+ticket_ids.txt
+
+# Jupyter Notebook checkpoints (if any)
+.ipynb_checkpoints/
+
