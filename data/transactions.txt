@@ -1,0 +1,3 @@
+transaction_id,transaction_date,amount,merchant_name,transaction_type,account_number,fraud_flag,customer_id
+TXN0001,2025-05-29 09:00:00,1500.75,Amazon,Purchase,1234567890,0,CUST001
+TXN0002,Invalid Date,2500.00,Walmart,,9876543210,0,CUST002
