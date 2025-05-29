@@ -1,0 +1,6 @@
+transaction_id,transaction_date,amount,merchant_name,transaction_type,account_number,fraud_flag
+TXN001,2025-05-28 10:00:00,1000.50,Amazon,Purchase,1234567890,0
+TXN002,Invalid Date,2000.00,Walmart,,9876543210,0
+TXN003,2025-05-28 10:15:00,,Target,Purchase,1234567890,0
+TXN001,2025-05-28 10:00:00,1000.50,Amazon,Purchase,1234567890,0
+TXN004,2025-05-28 10:30:00,15000.00,BestBuy,Withdrawal,5555555555,0
