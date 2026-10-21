@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Type-checks the Unity-facing scripts (Runtime + Editor + Tests) against NON-AUTHORITATIVE API stubs
+    (UnityApiStubs.cs) because no Unity Editor is available in the CI/agent environment.
+    Build with different define sets to cover conditional code paths, e.g.:
+      dotnet build -p:UcDefines="UC_INPUT_SYSTEM;ENABLE_INPUT_SYSTEM;UC_URP"
+      dotnet build -p:UcDefines="ENABLE_LEGACY_INPUT_MANAGER"
+      dotnet build -p:UcDefines="UNITY_ANDROID;ENABLE_LEGACY_INPUT_MANAGER"
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <OutputType>Library</OutputType>
+    <UcDefines Condition="'$(UcDefines)' == ''">UC_INPUT_SYSTEM;ENABLE_INPUT_SYSTEM;UC_URP</UcDefines>
+    <DefineConstants>$(DefineConstants);UNITY_5_3_OR_NEWER;$(UcDefines)</DefineConstants>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);CS0436</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="UnityApiStubs.cs" />
+    <Compile Include="../../Assets/Undercurrent/Scripts/**/*.cs" />
+    <Compile Include="../../Assets/Undercurrent/Tests/EditMode/**/*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="NUnit" Version="3.14.0" />
+  </ItemGroup>
+</Project>

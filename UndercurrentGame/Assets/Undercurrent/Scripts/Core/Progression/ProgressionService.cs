@@ -195,6 +195,43 @@ namespace Undercurrent.Core.Progression
             return reward;
         }
 
+        public const int QuickFightWinCurrency = 25;
+        public const int QuickFightWinXp = 30;
+        public const int QuickFightLossXp = 10;
+
+        /// <summary>Rewards for a non-campaign (Versus AI) match: small, so the campaign remains the main progression path.</summary>
+        public static RewardResult ApplyQuickFightResult(SaveData save, MatchSummary summary)
+        {
+            if (save == null) throw new ArgumentNullException(nameof(save));
+            if (summary == null) throw new ArgumentNullException(nameof(summary));
+            var reward = new RewardResult();
+            save.MatchesPlayed++;
+            save.TotalParries += summary.Parries;
+            save.TotalThrows += summary.Throws;
+            save.TotalPerfectRounds += summary.PerfectRounds;
+            if (summary.MaxCombo > save.BestCombo) save.BestCombo = summary.MaxCombo;
+            if (summary.Result == MatchResultKind.Victory)
+            {
+                save.TotalWins++;
+                reward.Currency = QuickFightWinCurrency;
+                reward.Xp = QuickFightWinXp;
+            }
+            else reward.Xp = QuickFightLossXp;
+
+            save.Currency += reward.Currency;
+            reward.LevelsGained = AddXp(save, reward.Xp);
+            reward.NewPlayerLevel = save.PlayerLevel;
+            foreach (var id in EvaluateAchievements(save))
+            {
+                reward.UnlockedAchievements.Add(id);
+                var a = Catalog.GetAchievement(id);
+                if (a == null) continue;
+                save.Currency += a.RewardCurrency;
+                reward.Currency += a.RewardCurrency;
+            }
+            return reward;
+        }
+
         public static bool IsObjectiveMet(ObjectiveDefinition obj, MatchSummary s)
         {
             if (s.Result != MatchResultKind.Victory) return false;

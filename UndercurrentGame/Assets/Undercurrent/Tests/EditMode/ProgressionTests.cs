@@ -190,6 +190,22 @@ namespace Undercurrent.Tests
         }
 
         [Test]
+        public void QuickFight_GivesSmallRewards_AndCountsStats()
+        {
+            var s = ProgressionService.CreateNew();
+            var win = ProgressionService.ApplyQuickFightResult(s, new MatchSummary { Result = MatchResultKind.Victory, Parries = 3, MaxCombo = 5 });
+            Assert.GreaterOrEqual(win.Currency, ProgressionService.QuickFightWinCurrency);
+            Assert.Contains("first_win", win.UnlockedAchievements);
+            Assert.Contains("combo_5", win.UnlockedAchievements);
+            Assert.AreEqual(3, s.TotalParries);
+            var loss = ProgressionService.ApplyQuickFightResult(s, new MatchSummary { Result = MatchResultKind.Defeat });
+            Assert.AreEqual(0, loss.Currency);
+            Assert.AreEqual(ProgressionService.QuickFightLossXp, loss.Xp);
+            Assert.IsEmpty(s.Levels, "quick fights never complete campaign levels");
+            Assert.AreEqual(2, s.MatchesPlayed);
+        }
+
+        [Test]
         public void MatchSummary_IsBuiltFromSimulation()
         {
             var h = TestHarness.Fighting(distance: 0.8f, config: new MatchConfig { IntroTicks = 2, RoundOverTicks = 5, RoundsToWin = 1, MaxRounds = 1 });
