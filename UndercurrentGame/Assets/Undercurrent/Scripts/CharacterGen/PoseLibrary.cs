@@ -64,6 +64,8 @@ namespace Undercurrent.CharacterGen
         Jab, Cross, LeadHook, BodyHook, Uppercut, Elbow, Overhand, Lunge, LeapPunch, Charge,
         FrontKick, Roundhouse, SideKick, AxeKick, Crescent, Spin, Knee, LowKick, Sweep, CrouchJab,
         AirKick, AirPunch, Throw, Special,
+        // Weapon swings (weapon held in the right hand)
+        WeaponSlash, TwoHandThrust, LowSlash,
     }
 
     /// <summary>
@@ -207,6 +209,14 @@ namespace Undercurrent.CharacterGen
             d[AttackStyle.AirPunch] = (Airborne.Copy().Set(Joint.ShoulderR, -170).Set(Joint.ElbowR, -40).Set(Joint.ShoulderL, -170).Set(Joint.ElbowL, -40),
                 Airborne.Copy().Set(Joint.Spine, 20).Set(Joint.ShoulderR, -80).Set(Joint.ElbowR, -20).Set(Joint.ShoulderL, -80).Set(Joint.ElbowL, -20));
             d[AttackStyle.Throw] = (Guard, ThrowGrab);
+            d[AttackStyle.WeaponSlash] = (Guard.Copy().Set(Joint.Hips, 0, 32).Set(Joint.Chest, 4, 22).Set(Joint.ShoulderR, -70, -70, -20).Set(Joint.ElbowR, -70),
+                Guard.Copy().Set(Joint.Hips, 0, 0).Set(Joint.Spine, 8, -6).Set(Joint.Chest, 6, -14).Set(Joint.ShoulderR, -88, 55, 0).Set(Joint.ElbowR, -12)
+                    .Set(Joint.HipL, -34).Set(Joint.KneeL, 40).Hip(0, -0.1f, 0.06f));
+            d[AttackStyle.TwoHandThrust] = (Guard.Copy().Set(Joint.ShoulderR, -40, 0, -10).Set(Joint.ElbowR, -95).Set(Joint.ShoulderL, -60, 0, 20).Set(Joint.ElbowL, -80),
+                Guard.Copy().Set(Joint.Spine, 12, -4).Set(Joint.Chest, 6, -8).Set(Joint.ShoulderR, -84, 0, -6).Set(Joint.ElbowR, -14)
+                    .Set(Joint.ShoulderL, -88, 0, 14).Set(Joint.ElbowL, -10).Set(Joint.HipL, -40).Set(Joint.KneeL, 46).Hip(0, -0.1f, 0.12f));
+            d[AttackStyle.LowSlash] = (Crouch.Copy().Set(Joint.ShoulderR, -40, -60, -10).Set(Joint.ElbowR, -60),
+                Crouch.Copy().Set(Joint.Spine, 28, -8).Set(Joint.Chest, 10, -10).Set(Joint.ShoulderR, -60, 60, 0).Set(Joint.ElbowR, -10));
             d[AttackStyle.Special] = (Crouch.Copy().Set(Joint.Spine, 26, 30).Set(Joint.ShoulderR, -20, 0, -30).Set(Joint.ElbowR, -130),
                 Guard.Copy().Set(Joint.Hips, 0, -4).Set(Joint.Spine, 16, -6).Set(Joint.Chest, 8, -16).Set(Joint.ShoulderR, -94).Set(Joint.ElbowR, -2)
                     .Set(Joint.ShoulderL, -94, 0, 20).Set(Joint.ElbowL, -20).Set(Joint.HipL, -55).Set(Joint.KneeL, 60).Set(Joint.HipR, 25).Set(Joint.KneeR, 10).Hip(0, -0.2f, 0.3f));
@@ -226,6 +236,14 @@ namespace Undercurrent.CharacterGen
             ["knee"] = AttackStyle.Knee, ["low_kick"] = AttackStyle.LowKick, ["sweep"] = AttackStyle.Sweep,
             ["jump_kick"] = AttackStyle.AirKick, ["jump_heavy_kick"] = AttackStyle.AirKick, ["jump_punch"] = AttackStyle.AirPunch,
             ["special"] = AttackStyle.Special,
+            ["knife_jab"] = AttackStyle.Cross, ["knife_slash"] = AttackStyle.WeaponSlash, ["knife_backhand"] = AttackStyle.WeaponSlash,
+            ["knife_lunge"] = AttackStyle.Lunge, ["knife_low"] = AttackStyle.LowSlash, ["knife_rising"] = AttackStyle.Uppercut,
+            ["sword_thrust"] = AttackStyle.Cross, ["sword_slash"] = AttackStyle.WeaponSlash, ["sword_riposte"] = AttackStyle.Cross,
+            ["sword_overhead"] = AttackStyle.Overhand, ["sword_low"] = AttackStyle.LowSlash, ["sword_rising"] = AttackStyle.Uppercut,
+            ["staff_poke"] = AttackStyle.TwoHandThrust, ["staff_swing"] = AttackStyle.WeaponSlash, ["staff_rising"] = AttackStyle.Uppercut,
+            ["staff_vault"] = AttackStyle.Overhand, ["staff_low"] = AttackStyle.LowSlash, ["staff_sweep"] = AttackStyle.LowSlash,
+            ["hook"] = AttackStyle.LeadHook, ["body_blow"] = AttackStyle.BodyHook, ["palm"] = AttackStyle.Jab, ["knee_flick"] = AttackStyle.Knee,
+            ["stop_kick"] = AttackStyle.FrontKick,
         };
 
         public static AttackStyle StyleFor(MoveData move)
@@ -253,6 +271,7 @@ namespace Undercurrent.CharacterGen
                 case AttackStyle.CrouchJab:
                 case AttackStyle.LowKick:
                 case AttackStyle.Sweep:
+                case AttackStyle.LowSlash:
                     return Crouch;
                 case AttackStyle.AirKick:
                 case AttackStyle.AirPunch:

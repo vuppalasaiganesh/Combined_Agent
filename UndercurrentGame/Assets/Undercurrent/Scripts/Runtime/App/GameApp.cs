@@ -170,23 +170,48 @@ namespace Undercurrent.Runtime.App
                 StartTraining(() => StartLevel(level));
                 return;
             }
-            var arena = CampaignDatabase.GetArena(level.ArenaId);
-            var setup = new FightSetup
-            {
-                Player = ProgressionService.BuildLoadout(Services.Data, Services.Data.SelectedFighterId),
-                Opponent = FighterRoster.Get(level.OpponentId),
-                PlayerLook = CharacterLook.For(Services.Data.SelectedFighterId, Services.Data.GetFighter(Services.Data.SelectedFighterId)),
-                OpponentLook = CharacterLook.For(level.OpponentId),
-                Arena = arena,
-                Config = level.CreateMatchConfig(arena),
-                Difficulty = level.Difficulty,
-                Level = level,
-                Seed = (uint)Environment.TickCount,
-            };
-            StartFight(setup, outcome => Navigator.Reset(new ResultsScreen(outcome, ApplyCampaignResult(outcome))));
+            RunBout(new GauntletRun(level));
         }
 
-        public void StartVersus(string opponentId, AIDifficulty difficulty, string arenaId, int roundsToWin)
+        /// <summary>Plays the run's current bout; gauntlets chain straight into the next bout until won or lost.</summary>
+        private void RunBout(GauntletRun run)
+        {
+            var level = run.Level;
+            var bout = run.Current;
+            var arena = CampaignDatabase.GetArena(level.ArenaId);
+            var playerId = Services.Data.SelectedFighterId;
+            var setup = new FightSetup
+            {
+                Player = ProgressionService.BuildLoadout(Services.Data, playerId, level.PlayerWeaponsAllowed),
+                Opponent = Armed(FighterRoster.Get(bout.OpponentId), bout.WeaponId),
+                PlayerLook = CharacterLook.For(playerId, Services.Data.GetFighter(playerId)),
+                OpponentLook = CharacterLook.For(bout.OpponentId),
+                Arena = arena,
+                Config = run.CurrentConfig(),
+                Difficulty = level.Difficulty,
+                Level = level,
+                Run = run,
+                Seed = (uint)Environment.TickCount,
+            };
+            StartFight(setup, outcome =>
+            {
+                if (run.Record(outcome.Sim))
+                {
+                    RunBout(run);
+                    return;
+                }
+                outcome.Summary = run.Total;
+                Navigator.Reset(new ResultsScreen(outcome, ApplyCampaignResult(outcome)));
+            });
+        }
+
+        private static FighterDefinition Armed(FighterDefinition def, string weaponId)
+        {
+            var weapon = WeaponCatalog.Get(weaponId);
+            return weapon != null ? WeaponLoadout.Apply(def, weapon) : def;
+        }
+
+        public void StartVersus(string opponentId, AIDifficulty difficulty, string arenaId, int roundsToWin, string playerWeapon = null, string opponentWeapon = null)
         {
             var arena = CampaignDatabase.GetArena(arenaId);
             var config = new MatchConfig { RoundsToWin = roundsToWin, MaxRounds = roundsToWin * 2 + 1, StageHalfWidth = arena.StageHalfWidth };
@@ -200,8 +225,9 @@ namespace Undercurrent.Runtime.App
             }
             var setup = new FightSetup
             {
-                Player = ProgressionService.BuildLoadout(Services.Data, playerId),
-                Opponent = FighterRoster.Get(opponentId),
+                Player = Armed(ProgressionService.BuildLoadout(Services.Data, playerId),
+                    ProgressionService.IsWeaponUnlocked(Services.Data, playerWeapon) ? playerWeapon : null),
+                Opponent = Armed(FighterRoster.Get(opponentId), opponentWeapon),
                 PlayerLook = CharacterLook.For(playerId, Services.Data.GetFighter(playerId)),
                 OpponentLook = opponentLook,
                 Arena = arena,

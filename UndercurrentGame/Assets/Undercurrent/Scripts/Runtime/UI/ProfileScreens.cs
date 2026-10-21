@@ -24,18 +24,18 @@ namespace Undercurrent.Runtime.UI
             var data = nav.App.Services.Data;
             if (string.IsNullOrEmpty(_focused)) _focused = data.SelectedFighterId;
 
-            var list = UIFactory.VStack(content, "Roster", 14);
-            UIFactory.Anchor((RectTransform)list.transform, 0f, 0.15f, 0.26f, 1f);
+            var list = UIFactory.ScrollList(content, "Roster", 12, 4);
+            UIFactory.Anchor((RectTransform)list.parent, 0f, 0f, 0.26f, 1f);
             foreach (var id in FighterRoster.PlayableIds)
             {
                 var f = FighterRoster.Get(id);
                 bool unlocked = ProgressionService.IsFighterUnlocked(data, id);
                 string label = unlocked ? $"{f.DisplayName.ToUpperInvariant()}\n<size=20>{f.Style}</size>" : $"LOCKED\n<size=20>{UnlockHint(id)}</size>";
                 var fid = id;
-                var b = UIFactory.Button(list.transform, label, () => { _focused = fid; nav.App.Backdrop.Show(fid, data.GetFighter(fid)); nav.Refresh(); },
+                var b = UIFactory.Button(list, label, () => { _focused = fid; nav.App.Backdrop.Show(fid, data.GetFighter(fid)); nav.Refresh(); },
                     id == _focused ? ButtonStyle.Primary : ButtonStyle.Secondary, 28);
                 b.GetComponentInChildren<Text>().supportRichText = true;
-                UIFactory.Size(b, 120);
+                UIFactory.Size(b, 110);
             }
 
             var def = FighterRoster.Get(_focused);
@@ -77,6 +77,9 @@ namespace Undercurrent.Runtime.UI
             var up = UIFactory.Button(row.transform, "UPGRADE", () => nav.Push(new UpgradeScreen(_focused)), ButtonStyle.Secondary, 26);
             up.interactable = focusedUnlocked;
             UIFactory.Size(up, -1, -1, 1);
+            var armory = UIFactory.Button(row.transform, "ARMORY", () => nav.Push(new ArmoryScreen(_focused)), ButtonStyle.Secondary, 26);
+            armory.interactable = focusedUnlocked;
+            UIFactory.Size(armory, -1, -1, 1);
         }
 
         private static string UnlockHint(string id)
@@ -204,6 +207,64 @@ namespace Undercurrent.Runtime.UI
                 t.supportRichText = true;
                 UIFactory.Stretch(t.rectTransform, 20, 20, 8, 8);
             }
+        }
+    }
+
+    /// <summary>Choose which weapon a fighter brings to weapon-mode fights.</summary>
+    public sealed class ArmoryScreen : ScreenBase
+    {
+        private readonly string _fighterId;
+
+        public ArmoryScreen(string fighterId) => _fighterId = fighterId;
+
+        public override void Build(RectTransform root, Navigator nav)
+        {
+            var data = nav.App.Services.Data;
+            var def = FighterRoster.Get(_fighterId);
+            var content = ScreenFrame.Build(root, nav, $"ARMORY — {def.DisplayName.ToUpperInvariant()}");
+            var fp = data.GetOrCreateFighter(_fighterId);
+            var list = UIFactory.ScrollList(content, "Weapons", 14, 6);
+            UIFactory.Stretch((RectTransform)list.parent);
+            UIFactory.Size(UIFactory.Label(list, "Weapons are used in Weapons and Gauntlet levels and in Versus. Kicks and throws always use your fighter's own style. " +
+                "A guard break or a throw knocks the weapon away for 5 seconds.", 24, Theme.TextDim, TextAnchor.MiddleLeft), 80);
+
+            AddRow(list, nav, fp, "", "Unarmed", "Your fighter's own punches and special. Fastest recovery; no weapon to lose.", true, null);
+            foreach (var id in WeaponCatalog.All)
+            {
+                var w = WeaponCatalog.Get(id);
+                bool unlocked = ProgressionService.IsWeaponUnlocked(data, id);
+                string hint = null;
+                if (!unlocked)
+                    foreach (var l in CampaignDatabase.Levels)
+                        if (l.UnlocksWeaponId == id) { hint = $"Win chapter {l.Chapter}-{l.Number}: {l.Title}"; break; }
+                var lp = w.Moves.Find(m => m.Button == AttackButton.LightPunch && m.Direction == MoveDirection.Neutral);
+                string stats = $"{w.Description}\nReach {lp.HitFrontOffset + lp.HitLength:0.00} m  ·  quick strike {lp.Startup}f";
+                if (w.ParryWindowBonus > 0) stats += $"  ·  parry +{w.ParryWindowBonus}f";
+                if (w.CounterHitBonus > 0) stats += $"  ·  counter-hit +{w.CounterHitBonus * 100:0}%";
+                AddRow(list, nav, fp, id, w.DisplayName, stats, unlocked, hint);
+            }
+        }
+
+        private void AddRow(RectTransform list, Navigator nav, FighterProgress fp, string id, string name, string text, bool unlocked, string hint)
+        {
+            bool equipped = (fp.EquippedWeapon ?? "") == id;
+            var row = UIFactory.Panel(list, "Weapon_" + name, unlocked ? Theme.Panel : Theme.Disabled);
+            UIFactory.Size(row, 150);
+            var t = UIFactory.Label(row.transform, $"<b>{name.ToUpperInvariant()}</b>{(equipped ? "   <color=#5AC76B>EQUIPPED</color>" : "")}\n{text}" +
+                (hint != null ? $"\n<color=#9EA8B5>Unlock: {hint}</color>" : ""), 24, Theme.Text, TextAnchor.MiddleLeft);
+            t.supportRichText = true;
+            UIFactory.Stretch(t.rectTransform, 24, 280, 10, 10);
+            var b = UIFactory.Button(row.transform, equipped ? "EQUIPPED" : unlocked ? "EQUIP" : "LOCKED", () =>
+            {
+                if (ProgressionService.TryEquipWeapon(nav.App.Services.Data, _fighterId, id))
+                {
+                    nav.App.Services.Persist();
+                    nav.App.Services.Audio.PlayUI("ui_confirm");
+                }
+                nav.Refresh();
+            }, equipped ? ButtonStyle.Primary : ButtonStyle.Secondary, 24);
+            b.interactable = unlocked && !equipped;
+            UIFactory.Fixed((RectTransform)b.transform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-20, 0), new Vector2(230, 90));
         }
     }
 

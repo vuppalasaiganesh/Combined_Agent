@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Text;
 using Undercurrent.Core.AI;
+using Undercurrent.Core.Combat;
 using Undercurrent.Core.Content;
 using Undercurrent.Core.Progression;
 using Undercurrent.Runtime.App;
@@ -102,9 +103,12 @@ namespace Undercurrent.Runtime.UI
             foreach (var ch in CampaignDatabase.Chapters)
             {
                 int number = ch.Number;
-                var b = UIFactory.Button(chapters, $"CH. {ch.Number}  {ch.Title.ToUpperInvariant()}", () => { _chapter = number; nav.Refresh(); },
+                int stars = 0, maxStars = 0;
+                foreach (var l in CampaignDatabase.LevelsInChapter(ch.Number)) { stars += data.GetLevel(l.Id)?.Stars ?? 0; maxStars += 3; }
+                var b = UIFactory.Button(chapters, $"CH. {ch.Number}  {ch.Title.ToUpperInvariant()}\n<size=20>{stars}/{maxStars} STARS</size>", () => { _chapter = number; nav.Refresh(); },
                     number == _chapter ? ButtonStyle.Primary : ButtonStyle.Secondary, 26);
-                UIFactory.Size(b, 84);
+                b.GetComponentInChildren<Text>().supportRichText = true;
+                UIFactory.Size(b, 96);
             }
 
             var detail = UIFactory.Rect(content, "Levels");
@@ -133,13 +137,18 @@ namespace Undercurrent.Runtime.UI
                 var arena = CampaignDatabase.GetArena(level.ArenaId);
                 var name = UIFactory.Label(card.transform, $"{level.Chapter}-{level.Number}   {level.Title.ToUpperInvariant()}{(level.IsBoss ? "   [BOSS]" : "")}", 32, unlocked ? Theme.Text : Theme.TextDim, TextAnchor.UpperLeft, FontStyle.Bold);
                 UIFactory.Stretch(name.rectTransform, 24, 330, 16, 90);
+                string format = level.IsGauntlet ? $"GAUNTLET x{level.Gauntlet.Count}" : level.RoundsToWin == 1 ? "1 round" : $"Best of {level.RoundsToWin * 2 - 1}";
+                string vs = level.IsGauntlet ? "vs " + string.Join(", ", level.Gauntlet.ConvertAll(g => FighterRoster.Get(g.OpponentId).Nickname))
+                    : $"vs {opponent.DisplayName} \"{opponent.Nickname}\"" + (level.Mode == LevelMode.Weapons && level.OpponentWeaponId != null ? $" with {WeaponCatalog.Get(level.OpponentWeaponId).DisplayName.ToLowerInvariant()}" : "");
+                string mode = level.Mode == LevelMode.Standard ? "" : level.Mode == LevelMode.Gauntlet ? "" : "  ·  WEAPONS";
                 var info = UIFactory.Label(card.transform,
-                    $"vs {opponent.DisplayName} \"{opponent.Nickname}\" ({opponent.Style})  ·  {arena.DisplayName}  ·  {ScreenFrame.DifficultyName(level.Difficulty)}  ·  {(level.RoundsToWin == 1 ? "1 round" : $"Best of {level.RoundsToWin * 2 - 1}")}",
+                    $"{vs}  ·  {arena.DisplayName}  ·  {ScreenFrame.DifficultyName(level.Difficulty)}  ·  {format}{mode}",
                     24, Theme.TextDim, TextAnchor.UpperLeft);
                 UIFactory.Stretch(info.rectTransform, 24, 330, 62, 50);
                 string status = !unlocked ? "LOCKED — win the previous fight"
-                    : progress != null && progress.Completed ? $"CLEARED  ·  objectives {progress.CompletedObjectives.Count}/{level.Objectives.Count}  ·  best {progress.BestTimeSeconds}s"
-                    : $"Reward: {level.RewardCurrency + level.FirstClearBonusCurrency} Marks, {level.RewardXp} XP" + (level.UnlocksFighterId != null ? $", unlocks {FighterRoster.Get(level.UnlocksFighterId).DisplayName}" : "");
+                    : progress != null && progress.Completed ? $"CLEARED  ·  {StarText.Of(progress.Stars)}  ·  best {progress.BestTimeSeconds}s"
+                    : $"Reward: {level.RewardCurrency + level.FirstClearBonusCurrency} Marks, {level.RewardXp} XP" + (level.UnlocksFighterId != null ? $", unlocks {FighterRoster.Get(level.UnlocksFighterId).DisplayName}" : "")
+                      + (level.UnlocksWeaponId != null ? $", unlocks the {WeaponCatalog.Get(level.UnlocksWeaponId).DisplayName.ToLowerInvariant()}" : "");
                 var st = UIFactory.Label(card.transform, status, 22, unlocked ? Theme.Accent : Theme.TextDim, TextAnchor.UpperLeft);
                 UIFactory.Stretch(st.rectTransform, 24, 330, 110, 10);
                 var lv = level;
@@ -148,6 +157,11 @@ namespace Undercurrent.Runtime.UI
                 UIFactory.Fixed((RectTransform)go.transform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-24, 0), new Vector2(260, 100));
             }
         }
+    }
+
+    public static class StarText
+    {
+        public static string Of(int stars) => $"STARS {stars}/3";
     }
 
     public sealed class BriefingScreen : ScreenBase
@@ -180,7 +194,16 @@ namespace Undercurrent.Runtime.UI
             var obj = UIFactory.Panel(content, "Objectives", Theme.Panel);
             UIFactory.Anchor(obj.rectTransform, 0f, 0f, 0.62f, 0.4f);
             var sb = new StringBuilder();
-            sb.Append($"<b>Victory:</b> win {(_level.RoundsToWin == 1 ? "the round" : $"{_level.RoundsToWin} rounds")}  ·  {_level.RoundSeconds}s timer  ·  {ScreenFrame.DifficultyName(_level.Difficulty)}\n");
+            if (_level.IsGauntlet)
+            {
+                var names = _level.Gauntlet.ConvertAll(g => FighterRoster.Get(g.OpponentId).Nickname + (g.WeaponId != null ? $" ({WeaponCatalog.Get(g.WeaponId).DisplayName.ToLowerInvariant()})" : ""));
+                sb.Append($"<b>Victory:</b> win {_level.Gauntlet.Count} bouts in a row: {string.Join(", ", names)}\n");
+            }
+            else
+                sb.Append($"<b>Victory:</b> win {(_level.RoundsToWin == 1 ? "the round" : $"{_level.RoundsToWin} rounds")}  ·  {_level.RoundSeconds}s timer  ·  {ScreenFrame.DifficultyName(_level.Difficulty)}\n");
+            if (_level.Mode == LevelMode.Weapons && !string.IsNullOrEmpty(_level.OpponentWeaponId))
+                sb.Append($"<b>Opponent weapon:</b> {WeaponCatalog.Get(_level.OpponentWeaponId).DisplayName}\n");
+            if (!string.IsNullOrEmpty(_level.RuleText)) sb.Append($"<color=#E8A33D><b>Rules:</b> {_level.RuleText}</color>\n");
             sb.Append($"<b>Rewards:</b> {_level.RewardCurrency} Marks + {_level.FirstClearBonusCurrency} first-clear bonus, {_level.RewardXp} XP\n");
             sb.Append("<b>Optional objectives:</b>\n");
             foreach (var o in _level.Objectives)
@@ -197,7 +220,12 @@ namespace Undercurrent.Runtime.UI
             UIFactory.Anchor((RectTransform)actions.transform, 0.64f, 0f, 1f, 0.4f);
             var meLabel = UIFactory.Label(actions.transform, $"Your fighter: {me.DisplayName} ({me.Style})", 26, Theme.TextDim, TextAnchor.MiddleCenter);
             UIFactory.Size(meLabel, 50);
-            UIFactory.Size(UIFactory.Button(actions.transform, "CHANGE FIGHTER", () => nav.Push(new FighterSelectScreen(null)), ButtonStyle.Secondary), 86);
+            UIFactory.Size(UIFactory.Button(actions.transform, "CHANGE FIGHTER", () => nav.Push(new FighterSelectScreen(null)), ButtonStyle.Secondary), 76);
+            if (_level.PlayerWeaponsAllowed)
+            {
+                var w = WeaponCatalog.Get(data.GetOrCreateFighter(me.Id).EquippedWeapon);
+                UIFactory.Size(UIFactory.Button(actions.transform, $"WEAPON: {(w != null ? w.DisplayName.ToUpperInvariant() : "UNARMED")}", () => nav.Push(new ArmoryScreen(me.Id)), ButtonStyle.Secondary, 26), 76);
+            }
             bool unlocked = ProgressionService.IsLevelUnlocked(data, _level);
             var fight = UIFactory.Button(actions.transform, unlocked ? "FIGHT" : "LOCKED", () => nav.App.StartLevel(_level));
             fight.interactable = unlocked;
@@ -211,6 +239,8 @@ namespace Undercurrent.Runtime.UI
         private static int _difficulty = (int)AIDifficulty.Normal;
         private static int _arena;
         private static int _rounds = 1;
+        private static int _myWeapon;
+        private static int _oppWeapon;
 
         public override void Build(RectTransform root, Navigator nav)
         {
@@ -227,21 +257,30 @@ namespace Undercurrent.Runtime.UI
             var arenaNames = new string[CampaignDatabase.Arenas.Count];
             for (int i = 0; i < arenaNames.Length; i++) arenaNames[i] = CampaignDatabase.Arenas[i].DisplayName;
 
-            var col = UIFactory.VStack(content, "Options", 22, 10);
-            UIFactory.Anchor((RectTransform)col.transform, 0.1f, 0.1f, 0.9f, 1f);
+            var colT = UIFactory.ScrollList(content, "Options", 16, 10);
+            UIFactory.Anchor((RectTransform)colT.parent, 0.08f, 0f, 0.92f, 1f);
             var me = FighterRoster.Get(data.SelectedFighterId);
-            var meRow = UIFactory.HStack(col.transform, "Me", 16);
+            var meRow = UIFactory.HStack(colT, "Me", 16);
             UIFactory.Size(meRow, 80);
             UIFactory.Size(UIFactory.Label(meRow.transform, $"You: {me.DisplayName} ({me.Style})", Theme.BodySize), -1, -1, 1);
             UIFactory.Size(UIFactory.Button(meRow.transform, "CHANGE", () => nav.Push(new FighterSelectScreen(null)), ButtonStyle.Secondary), 72, 220);
-            UIFactory.Selector(col.transform, "Opponent", names, Mathf.Clamp(_opponent, 0, names.Length - 1), i => _opponent = i);
-            UIFactory.Selector(col.transform, "Difficulty", diffNames, _difficulty, i => _difficulty = i);
-            UIFactory.Selector(col.transform, "Arena", arenaNames, _arena, i => _arena = i);
-            UIFactory.Selector(col.transform, "Format", new[] { "1 Round", "Best of 3", "Best of 5" }, _rounds - 1, i => _rounds = i + 1);
-            var note = UIFactory.Label(col.transform, "Versus matches award a little XP and Marks. The campaign is the main path for unlocks.", 22, Theme.TextDim, TextAnchor.MiddleCenter);
+            UIFactory.Selector(colT, "Opponent", names, Mathf.Clamp(_opponent, 0, names.Length - 1), i => _opponent = i);
+            UIFactory.Selector(colT, "Difficulty", diffNames, _difficulty, i => _difficulty = i);
+            UIFactory.Selector(colT, "Arena", arenaNames, _arena, i => _arena = i);
+            UIFactory.Selector(colT, "Format", new[] { "1 Round", "Best of 3", "Best of 5" }, _rounds - 1, i => _rounds = i + 1);
+            var myWeapons = new List<string> { "" };
+            foreach (var w in WeaponCatalog.All) if (ProgressionService.IsWeaponUnlocked(data, w)) myWeapons.Add(w);
+            var allWeapons = new List<string> { "" };
+            allWeapons.AddRange(WeaponCatalog.All);
+            string Label(string w) => w == "" ? "Unarmed" : WeaponCatalog.Get(w).DisplayName;
+            _myWeapon = Mathf.Clamp(_myWeapon, 0, myWeapons.Count - 1);
+            UIFactory.Selector(colT, "Your weapon", myWeapons.ConvertAll(Label).ToArray(), _myWeapon, i => _myWeapon = i);
+            UIFactory.Selector(colT, "Opponent weapon", allWeapons.ConvertAll(Label).ToArray(), _oppWeapon, i => _oppWeapon = i);
+            var note = UIFactory.Label(colT, "Versus matches award a little XP and Marks. The campaign is the main path for unlocks.", 22, Theme.TextDim, TextAnchor.MiddleCenter);
             UIFactory.Size(note, 50);
-            UIFactory.Size(UIFactory.Button(col.transform, "FIGHT", () =>
-                nav.App.StartVersus(ids[Mathf.Clamp(_opponent, 0, ids.Count - 1)], (AIDifficulty)_difficulty, CampaignDatabase.Arenas[_arena].Id, _rounds)), 110);
+            UIFactory.Size(UIFactory.Button(colT, "FIGHT", () =>
+                nav.App.StartVersus(ids[Mathf.Clamp(_opponent, 0, ids.Count - 1)], (AIDifficulty)_difficulty, CampaignDatabase.Arenas[_arena].Id, _rounds,
+                    myWeapons[_myWeapon], allWeapons[Mathf.Clamp(_oppWeapon, 0, allWeapons.Count - 1)])), 110);
         }
     }
 
@@ -286,6 +325,8 @@ namespace Undercurrent.Runtime.UI
                     foreach (var o in level.Objectives) if (o.Id == id) sb.Append($"Objective: {o.Describe()} (+{o.BonusCurrency})\n");
                 foreach (var f in _reward.UnlockedFighters) sb.Append($"<color=#33B3B8>New fighter unlocked: {FighterRoster.Get(f).DisplayName}!</color>\n");
                 foreach (var c in _reward.UnlockedCosmetics) sb.Append($"<color=#33B3B8>New item: {Catalog.GetCosmetic(c)?.DisplayName}</color>\n");
+                foreach (var w in _reward.UnlockedWeapons) sb.Append($"<color=#33B3B8>New weapon: {WeaponCatalog.Get(w)?.DisplayName} — equip it in Fighters > Armory</color>\n");
+                if (won && level != null) sb.Append($"<color=#E8A33D>{StarText.Of(_reward.Stars)}{(_reward.NewBestStars ? "  (new best)" : "")}</color>\n");
                 foreach (var a in _reward.UnlockedAchievements) sb.Append($"<color=#E8A33D>Award: {Catalog.GetAchievement(a)?.DisplayName}</color>\n");
                 if (_reward.FirstClear && level != null && !string.IsNullOrEmpty(level.StoryOutro)) sb.Append($"\n<i>{level.StoryOutro}</i>");
                 if (!won) sb.Append("\nTip: watch your stamina, and punish heavy attacks after you block them.");
@@ -300,15 +341,14 @@ namespace Undercurrent.Runtime.UI
             var setup = _outcome.Setup;
             if (setup.Level != null)
             {
-                LevelDefinition next = null;
-                foreach (var l in CampaignDatabase.Levels) if (l.RequiresLevelId == setup.Level.Id) next = l;
+                var next = CampaignDatabase.NextAfter(setup.Level);
                 if (won && next != null)
                     UIFactory.Size(UIFactory.Button(row.transform, "NEXT FIGHT", () => nav.Reset(new BriefingScreen(next))), -1, 360, 1);
                 UIFactory.Size(UIFactory.Button(row.transform, won ? "REPLAY" : "RETRY", () => app.StartLevel(setup.Level), won ? ButtonStyle.Secondary : ButtonStyle.Primary), -1, 300, 1);
             }
             else
             {
-                UIFactory.Size(UIFactory.Button(row.transform, "REMATCH", () => app.StartVersus(setup.Opponent.Id, setup.Difficulty, setup.Arena.Id, setup.Config.RoundsToWin)), -1, 300, 1);
+                UIFactory.Size(UIFactory.Button(row.transform, "REMATCH", () => app.StartVersus(setup.Opponent.Id, setup.Difficulty, setup.Arena.Id, setup.Config.RoundsToWin, setup.Player.Weapon?.Id, setup.Opponent.Weapon?.Id)), -1, 300, 1);
             }
             UIFactory.Size(UIFactory.Button(row.transform, "MAIN MENU", app.ShowMainMenu, ButtonStyle.Secondary), -1, 300, 1);
         }

@@ -111,6 +111,16 @@ namespace Undercurrent.CharacterGen
                 3, "1A1412", "403830", "9A7333", "262626", 0.006f),
             [FighterRoster.Sable] = Make(new BodySpec { Height = 1.77f, Build = 0.58f, Female = true, Hair = HairStyle.Short, Top = TopStyle.TankTop },
                 5, "0A0808", "141417", "9E8CFF", "1A1A1F", 0.015f),
+            [FighterRoster.Kofi] = Make(new BodySpec { Height = 1.88f, Build = 0.95f, Hair = HairStyle.Short, Beard = false, Shoes = true },
+                5, "0B0B0C", "5A1A14", "E8A33D", "1C1C1C", 0.02f),
+            [FighterRoster.Wren] = Make(new BodySpec { Height = 1.66f, Build = 0.35f, Female = true, Hair = HairStyle.Ponytail, Top = TopStyle.TankTop, LongPants = true },
+                1, "8C2F1B", "1F2A22", "D9C27A", "3A3A3A", 0.02f),
+            [FighterRoster.Lin] = Make(new BodySpec { Height = 1.70f, Build = 0.4f, Female = true, Hair = HairStyle.Bun, Top = TopStyle.TankTop, LongPants = true },
+                1, "101012", "6E1D2A", "E6C36A", "EDEDED", 0.006f),
+            [FighterRoster.Brandt] = Make(new BodySpec { Height = 1.86f, Build = 0.8f, Hair = HairStyle.Short, Beard = true, LongPants = true, Shoes = true, Top = TopStyle.TankTop },
+                0, "A8742E", "3B2E22", "8A8A8A", "4A3A2A", 0.004f),
+            [FighterRoster.Crane] = Make(new BodySpec { Height = 1.84f, Build = 0.7f, Hair = HairStyle.Short, LongPants = true, Shoes = true, Top = TopStyle.TankTop },
+                2, "C8C8CC", "0E0E10", "B3122E", "0E0E10", 0.006f),
         };
 
         public static FighterAppearance For(string fighterId) =>
@@ -118,7 +128,7 @@ namespace Undercurrent.CharacterGen
 
         /// <summary>True when the fighter's default outfit is fixed (campaign opponents) rather than player cosmetics.</summary>
         public static bool HasFixedOutfit(string fighterId) =>
-            fighterId == FighterRoster.Ines || fighterId == FighterRoster.Rook || fighterId == FighterRoster.Sable;
+            fighterId == FighterRoster.Ines || fighterId == FighterRoster.Rook || fighterId == FighterRoster.Sable || fighterId == FighterRoster.Crane;
     }
 
     /// <summary>Rest-pose skeleton in character space (metres, feet at y=0, facing +Z, character's left is -X).</summary>

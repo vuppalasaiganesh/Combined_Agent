@@ -40,6 +40,10 @@ namespace Undercurrent.Runtime.Services
             Add("defeat", Chime(new[] { 392f, 330f, 262f }, 0.25f));
             Add("special_ready", Chime(new[] { 1046f, 1568f }, 0.07f));
             Add("guard_break", GuardBreak());
+            Add("blade_light", Blade(0.12f, 2200f, 0.55f, 71));
+            Add("blade_heavy", Blade(0.22f, 1500f, 0.8f, 72));
+            Add("clash", Clash());
+            Add("disarm", Clatter());
 
             Add("amb_harbor", Ambience(8f, 400f, 0.18f, 0f, 11));
             Add("amb_rain", Ambience(8f, 6000f, 0.12f, 0.6f, 12));
@@ -146,6 +150,56 @@ namespace Undercurrent.Runtime.Services
             var d = Buffer(0.5f);
             for (int i = 0; i < d.Length; i++) d[i] = (i < a.Length ? a[i] * 0.6f : 0f) + (i < b.Length ? b[i] : 0f);
             Normalize(d, 0.9f);
+            return d;
+        }
+
+        /// <summary>Blade impact: a slicing swish plus a short metallic ring.</summary>
+        private static float[] Blade(float seconds, float swishHz, float peak, int seed)
+        {
+            var swish = Whoosh(seconds, swishHz, 1f, seed);
+            var ring = Tone(seconds, new[] { 2900f, 4100f }, 1f, 22f);
+            var hit = Impact(seconds, 110f, 1f, 3000f, seed + 1);
+            var d = Buffer(seconds);
+            for (int i = 0; i < d.Length; i++)
+                d[i] = (i < swish.Length ? swish[i] * 0.6f : 0f) + (i < ring.Length ? ring[i] * 0.25f : 0f) + (i < hit.Length ? hit[i] * 0.5f : 0f);
+            Normalize(d, peak);
+            return d;
+        }
+
+        /// <summary>Two blades meeting: bright inharmonic ring with a sharp attack.</summary>
+        private static float[] Clash()
+        {
+            var d = Buffer(0.9f);
+            float[] partials = { 1650f, 2470f, 3320f, 4890f, 6150f };
+            var rng = new System.Random(81);
+            for (int i = 0; i < d.Length; i++)
+            {
+                float t = (float)i / SampleRate;
+                float s = 0f;
+                for (int p = 0; p < partials.Length; p++) s += Mathf.Sin(2f * Mathf.PI * partials[p] * t) * Mathf.Exp(-t * (4f + p * 2.5f)) / (p + 1);
+                s += (float)(rng.NextDouble() * 2 - 1) * Mathf.Exp(-t * 90f) * 0.8f;
+                d[i] = s;
+            }
+            Normalize(d, 0.85f);
+            return d;
+        }
+
+        /// <summary>A weapon clattering on the floor: a few decaying metallic bounces.</summary>
+        private static float[] Clatter()
+        {
+            var d = Buffer(0.8f);
+            float[] times = { 0f, 0.16f, 0.29f, 0.38f, 0.44f };
+            for (int b = 0; b < times.Length; b++)
+            {
+                int start = (int)(times[b] * SampleRate);
+                float amp = 1f / (b + 1);
+                for (int i = start; i < d.Length; i++)
+                {
+                    float t = (float)(i - start) / SampleRate;
+                    d[i] += amp * (Mathf.Sin(2f * Mathf.PI * (2300f + 300f * b) * t) + 0.5f * Mathf.Sin(2f * Mathf.PI * 3700f * t)) * Mathf.Exp(-t * 30f);
+                }
+            }
+            Normalize(d, 0.6f);
             return d;
         }
 

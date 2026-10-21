@@ -172,6 +172,7 @@ namespace UnityEngine
         public Color(float r, float g, float b) { this.r = r; this.g = g; this.b = b; a = 1; }
         public static Color white => default;
         public static Color black => default;
+        public static Color gray => default;
         public static Color Lerp(Color a, Color b, float t) => throw null;
         public static Color operator *(Color a, float b) => throw null;
         public static implicit operator Color(Color32 c) => throw null;
@@ -384,6 +385,7 @@ namespace UnityEngine
     }
 
     public sealed class MeshRenderer : Renderer { }
+    public sealed class MeshFilter : Component { public Mesh sharedMesh { get => throw null; set => throw null; } }
 
     // Present in real Unity; included so ambiguous-name errors (CS0104) with our own Joint/Pose types are caught.
     public class Joint : Component { }
@@ -561,7 +563,7 @@ namespace UnityEngine
         public ParticleSystemRenderMode renderMode { get => throw null; set => throw null; }
     }
 
-    public enum HumanBodyBones { Head = 10 }
+    public enum HumanBodyBones { Head = 10, RightHand = 18 }
 
     public sealed class Avatar : Object { public bool isHuman => throw null; }
 

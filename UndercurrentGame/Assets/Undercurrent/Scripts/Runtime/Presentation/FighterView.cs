@@ -29,6 +29,10 @@ namespace Undercurrent.Runtime.Presentation
         private MaterialPropertyBlock _block;
         private float _flash;
         private Transform _shadowBlob;
+        private GameObject _heldWeapon;
+        private GameObject _droppedWeapon;
+        private float _droppedX;
+        private bool _wasArmed;
 
         public FighterRuntime Fighter => _fighter;
         public Vector3 HeadPosition => _presenter != null ? _presenter.HeadPosition : transform.position + Vector3.up * 1.6f;
@@ -57,10 +61,26 @@ namespace Undercurrent.Runtime.Presentation
                     Destroy(instance);
                 }
             }
+            Transform hand = null;
             if (_presenter == null)
             {
                 var mannequin = Mannequin.Build(_visualRoot, look);
                 _presenter = new MannequinPresenter(mannequin, look);
+                hand = mannequin[Joint.HandR];
+            }
+            else if (animator != null)
+            {
+                // Licensed rigs: weapon is parented to the right-hand bone; its grip offset may need per-model adjustment.
+                hand = animator.GetBoneTransform(HumanBodyBones.RightHand);
+            }
+
+            if (fighter.Weapon != null && hand != null)
+            {
+                float height = look.Appearance.Body.Height;
+                _heldWeapon = WeaponVisual.Create(fighter.Weapon.Class, height, hand);
+                _droppedWeapon = WeaponVisual.Create(fighter.Weapon.Class, height, transform.parent != null ? transform.parent : transform);
+                _droppedWeapon.SetActive(false);
+                _wasArmed = true;
             }
 
             _renderers = _visualRoot.GetComponentsInChildren<Renderer>();
@@ -101,6 +121,24 @@ namespace Undercurrent.Runtime.Presentation
             _visualRoot.localScale = new Vector3(_fighter.Facing, 1f, 1f);
             _presenter.Tick(_fighter, sim, dt);
 
+            if (_heldWeapon != null)
+            {
+                bool armed = _fighter.IsArmed;
+                if (armed != _wasArmed)
+                {
+                    _heldWeapon.SetActive(armed);
+                    _droppedWeapon.SetActive(!armed);
+                    if (!armed)
+                    {
+                        // The weapon clatters to the floor behind the fighter.
+                        _droppedX = _fighter.X - _fighter.Facing * 0.7f;
+                        _droppedWeapon.transform.position = new Vector3(_droppedX, 0.03f, 0.25f);
+                        _droppedWeapon.transform.rotation = Quaternion.Euler(0f, 90f, 90f);
+                    }
+                    _wasArmed = armed;
+                }
+            }
+
             if (_shadowBlob != null)
             {
                 _shadowBlob.position = new Vector3(_fighter.X, 0.012f, 0f);
@@ -108,7 +146,7 @@ namespace Undercurrent.Runtime.Presentation
                 _shadowBlob.localScale = new Vector3(0.9f * k, 0.55f * k, 1f);
             }
 
-            if (_flash > 0f)
+            if (_flash > 0f && _renderers != null)
             {
                 _flash = Mathf.Max(0f, _flash - dt * 9f);
                 var tint = Color.Lerp(Color.white, new Color(1f, 0.55f, 0.45f), _flash);

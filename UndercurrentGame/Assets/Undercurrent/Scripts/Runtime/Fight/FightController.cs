@@ -25,6 +25,8 @@ namespace Undercurrent.Runtime.Fight
         public LevelDefinition Level;
         public bool Tutorial;
         public uint Seed = 1;
+        /// <summary>Gauntlet progress (bout index/count) for multi-bout levels; null otherwise.</summary>
+        public GauntletRun Run;
     }
 
     public sealed class FightOutcome
@@ -245,7 +247,12 @@ namespace Undercurrent.Runtime.Fight
             {
                 case CombatEventType.RoundAnnounce:
                     bool final = _sim.Fighters[0].RoundsWon == _sim.Config.RoundsToWin - 1 && _sim.Fighters[1].RoundsWon == _sim.Config.RoundsToWin - 1 && _sim.Config.RoundsToWin > 1;
-                    _hud.Announce(_tutorial != null ? "TRAINING" : final ? "FINAL ROUND" : "ROUND " + e.Amount, _setup.Arena.DisplayName, 1.6f);
+                    string announceSub = _setup.Arena.DisplayName;
+                    if (_setup.Run != null && _setup.Run.Bouts.Count > 1)
+                        announceSub = $"BOUT {_setup.Run.Index + 1} OF {_setup.Run.Bouts.Count}  ·  {_setup.Opponent.DisplayName.ToUpperInvariant()}";
+                    string title = _tutorial != null ? "TRAINING" : final ? "FINAL ROUND" : "ROUND " + e.Amount;
+                    if (_setup.Run != null && _setup.Run.Bouts.Count > 1) title = "BOUT " + (_setup.Run.Index + 1);
+                    _hud.Announce(title, announceSub, 1.6f);
                     audio.PlaySfx("round_bell", 0.8f, 0f);
                     _camera.Snap();
                     break;
@@ -323,6 +330,26 @@ namespace Undercurrent.Runtime.Fight
                 case CombatEventType.ThrowBroken:
                     audio.PlaySfx("block", 1f, 0f);
                     _hud.Callout("BREAK!", at + Vector3.up * 0.6f, Theme.Teal);
+                    break;
+
+                case CombatEventType.Clash:
+                    _vfx.Play("spark_heavy", at);
+                    _vfx.Play("parry_flash", at);
+                    audio.PlaySfx("clash", 1f, 0.05f, Pan(e.X));
+                    _camera.Shake(0.25f);
+                    _hud.Callout("CLASH!", at + Vector3.up * 0.5f, Theme.Accent);
+                    haptics.Play(HapticPattern.Parry);
+                    SlowMo(0.45f, 0.18f);
+                    break;
+
+                case CombatEventType.Disarmed:
+                    audio.PlaySfx("disarm", 0.9f, 0.05f, Pan(e.X));
+                    _hud.Callout(e.Target == 0 ? "DISARMED!" : "WEAPON DOWN!", _views[e.Target].HeadPosition + Vector3.up * 0.25f, e.Target == 0 ? Theme.Danger : Theme.Success);
+                    break;
+
+                case CombatEventType.Rearmed:
+                    audio.PlaySfx("disarm", 0.5f, 0.1f, Pan(e.X));
+                    _hud.Callout("REARMED", _views[e.Source].HeadPosition + Vector3.up * 0.25f, Theme.TextDim);
                     break;
 
                 case CombatEventType.Knockdown:

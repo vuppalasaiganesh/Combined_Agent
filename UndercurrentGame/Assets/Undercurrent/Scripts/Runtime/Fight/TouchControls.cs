@@ -55,6 +55,7 @@ namespace Undercurrent.Runtime.Fight
         private SettingsData _settings;
         private TouchButton _special;
         private float _time;
+        private bool? _labelsArmed;
 
         public bool EditMode { get; private set; }
 
@@ -126,6 +127,15 @@ namespace Undercurrent.Runtime.Fight
         {
             if (player == null) return;
             _time += Time.unscaledDeltaTime;
+            if (_labelsArmed != player.IsArmed && _settings.ShowInputHints)
+            {
+                _labelsArmed = player.IsArmed;
+                foreach (var b in _buttons)
+                {
+                    if (b.Buttons == InputButtons.LightPunch) b.SetSubLabel(player.IsArmed ? "Light Strike" : "Light Punch");
+                    if (b.Buttons == InputButtons.HeavyPunch) b.SetSubLabel(player.IsArmed ? "Heavy Strike" : "Heavy Punch");
+                }
+            }
             var special = player.Def.Resolve(AttackButton.Special, MoveDirection.Neutral);
             bool ready = special != null && player.Focus >= special.MeterCost;
             if (_special != null) _special.SetHighlight(ready ? 0.5f + 0.5f * Mathf.Sin(_time * 6f) : 0f, ready);
@@ -172,6 +182,7 @@ namespace Undercurrent.Runtime.Fight
         private Color _color;
         private float _opacity;
         private bool _dimmed;
+        private Text _sub;
 
         public bool IsHeld => _pointers.Count > 0;
 
@@ -199,6 +210,7 @@ namespace Undercurrent.Runtime.Fight
             {
                 var st = UIFactory.Label(bg.transform, sub, 16, new Color(1, 1, 1, 0.85f), TextAnchor.LowerCenter);
                 UIFactory.Stretch(st.rectTransform, 10, 10, 6, 22);
+                b._sub = st;
             }
             b.Apply();
             return b;
@@ -211,6 +223,11 @@ namespace Undercurrent.Runtime.Fight
             float dim = _dimmed ? 0.45f : 1f;
             _bg.color = new Color(Mathf.Min(1f, c.r * pressed), Mathf.Min(1f, c.g * pressed), Mathf.Min(1f, c.b * pressed), _opacity * dim);
             _bg.rectTransform.localScale = Vector3.one * (IsHeld ? 0.93f : 1f);
+        }
+
+        public void SetSubLabel(string text)
+        {
+            if (_sub != null) _sub.text = text;
         }
 
         public void SetHighlight(float amount, bool enabled)

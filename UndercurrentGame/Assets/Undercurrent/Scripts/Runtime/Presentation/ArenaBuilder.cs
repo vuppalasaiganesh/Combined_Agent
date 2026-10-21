@@ -19,6 +19,10 @@ namespace Undercurrent.Runtime.Presentation
             {
                 case "freightyard": BuildFreightYard(root.transform, arena); break;
                 case "cistern": BuildCistern(root.transform, arena); break;
+                case "market": BuildMarket(root.transform, arena); break;
+                case "rooftop": BuildRooftop(root.transform, arena); break;
+                case "forge": BuildForge(root.transform, arena); break;
+                case "finals": BuildFinals(root.transform, arena); break;
                 default: BuildNetLoft(root.transform, arena); break;
             }
             return root;
@@ -185,6 +189,108 @@ namespace Undercurrent.Runtime.Presentation
             AddLight(root, LightType.Spot, new Vector3(-3.8f, 1.7f, 3.0f), new Vector3(10f, 150f, 0f), new Color(1f, 0.82f, 0.6f), 9f, 14f, 85f, shadows: true);
             AddLight(root, LightType.Spot, new Vector3(3.8f, 1.7f, 3.0f), new Vector3(10f, 210f, 0f), new Color(1f, 0.82f, 0.6f), 7f, 14f, 85f);
             AddLight(root, LightType.Directional, new Vector3(0, 6, -2), new Vector3(55f, 0f, 0f), new Color(0.4f, 0.5f, 0.55f), 0.25f);
+        }
+
+        // ------------------------------------------------------------------ Lantern Row Night Market
+
+        private static void BuildMarket(Transform root, ArenaDefinition a)
+        {
+            Ambient(new Color(0.16f, 0.12f, 0.18f), new Color(0.2f, 0.12f, 0.1f), new Color(0.06f, 0.05f, 0.05f), new Color(0.09f, 0.06f, 0.07f), 0.018f);
+            var tarmac = VisualAssets.Lit(new Color(0.16f, 0.16f, 0.17f), 0.55f);
+            Box(root, "Street", new Vector3(0, -0.05f, 2f), new Vector3(40f, 0.1f, 14f), tarmac, false);
+            Color[] canopy = { new Color(0.65f, 0.15f, 0.12f), new Color(0.12f, 0.35f, 0.4f), new Color(0.75f, 0.55f, 0.15f) };
+            for (int i = -4; i <= 4; i++)
+            {
+                var stall = new Vector3(i * 2.6f, 0f, 4.4f);
+                Box(root, "Counter", stall + new Vector3(0, 0.5f, 0), new Vector3(2.2f, 1f, 1f), VisualAssets.Lit(new Color(0.35f, 0.24f, 0.16f), 0.3f));
+                Box(root, "Canopy", stall + new Vector3(0, 2.3f, 0.1f), new Vector3(2.4f, 0.08f, 1.6f), VisualAssets.Lit(canopy[(i + 4) % 3], 0.2f));
+                Cyl(root, "Pole", stall + new Vector3(-1.1f, 1.15f, -0.6f), new Vector3(0.05f, 1.15f, 0.05f), VisualAssets.Lit(Color.gray, 0.4f, 0.5f));
+            }
+            var lantern = VisualAssets.Unlit(new Color(1f, 0.55f, 0.25f) * 1.4f);
+            for (int i = -6; i <= 6; i++)
+            {
+                var ball = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                Object.Destroy(ball.GetComponent<Collider>());
+                ball.transform.SetParent(root, false);
+                ball.transform.localPosition = new Vector3(i * 1.1f, 3.2f + 0.15f * Mathf.Sin(i), 2.6f);
+                ball.transform.localScale = new Vector3(0.28f, 0.36f, 0.28f);
+                ball.GetComponent<MeshRenderer>().sharedMaterial = lantern;
+                ball.GetComponent<MeshRenderer>().shadowCastingMode = ShadowCastingMode.Off;
+            }
+            AddLight(root, LightType.Point, new Vector3(-2.5f, 3f, 1.8f), Vector3.zero, new Color(1f, 0.6f, 0.3f), 2.2f, 9f);
+            AddLight(root, LightType.Point, new Vector3(2.5f, 3f, 1.8f), Vector3.zero, new Color(1f, 0.6f, 0.3f), 2.2f, 9f);
+            AddLight(root, LightType.Directional, new Vector3(0, 6, -2), new Vector3(40f, 15f, 0f), new Color(0.45f, 0.5f, 0.75f), 0.35f, shadows: true);
+        }
+
+        // ------------------------------------------------------------------ Sen Rooftop Garden
+
+        private static void BuildRooftop(Transform root, ArenaDefinition a)
+        {
+            Ambient(new Color(0.35f, 0.4f, 0.5f), new Color(0.25f, 0.28f, 0.3f), new Color(0.1f, 0.12f, 0.1f), new Color(0.3f, 0.34f, 0.42f), 0.012f);
+            var stone = VisualAssets.Lit(new Color(0.42f, 0.42f, 0.4f), 0.7f);
+            var moss = VisualAssets.Lit(new Color(0.22f, 0.36f, 0.18f), 0.2f);
+            var wood = VisualAssets.Lit(new Color(0.3f, 0.2f, 0.12f), 0.35f);
+            for (int x = -7; x <= 7; x++)
+            for (int z = 0; z <= 3; z++)
+                Box(root, "Slab", new Vector3(x * 1.05f, -0.05f, z * 1.05f - 0.2f), new Vector3(1f, 0.1f, 1f), ((x + z) & 1) == 0 ? stone : moss, false);
+            Box(root, "Parapet", new Vector3(0, 0.5f, 3.9f), new Vector3(16f, 1f, 0.3f), stone);
+            for (int i = -3; i <= 3; i++) Box(root, "Post", new Vector3(i * 2.4f, 1.6f, 3.8f), new Vector3(0.18f, 3.2f, 0.18f), wood);
+            Box(root, "Beam", new Vector3(0, 3.2f, 3.8f), new Vector3(16f, 0.2f, 0.25f), wood);
+            for (int i = 0; i < 18; i++)
+            {
+                float h = 6f + (i * 37 % 11);
+                Box(root, "Skyline", new Vector3(-20f + i * 2.4f, h * 0.5f - 2f, 22f), new Vector3(2f, h, 2f), VisualAssets.Lit(new Color(0.12f, 0.14f, 0.18f), 0.3f), false);
+            }
+            AddLight(root, LightType.Directional, new Vector3(0, 6, -2), new Vector3(35f, -25f, 0f), new Color(0.75f, 0.8f, 0.9f), 0.8f, shadows: true);
+            AddLight(root, LightType.Point, new Vector3(0, 2.8f, 2.5f), Vector3.zero, new Color(1f, 0.75f, 0.45f), 1.5f, 8f);
+        }
+
+        // ------------------------------------------------------------------ Brandt Forge Yard
+
+        private static void BuildForge(Transform root, ArenaDefinition a)
+        {
+            Ambient(new Color(0.14f, 0.1f, 0.08f), new Color(0.22f, 0.12f, 0.06f), new Color(0.05f, 0.04f, 0.03f), new Color(0.12f, 0.07f, 0.04f), 0.02f);
+            var earth = VisualAssets.Lit(new Color(0.22f, 0.18f, 0.15f), 0.25f);
+            var iron = VisualAssets.Lit(new Color(0.18f, 0.18f, 0.2f), 0.6f, 0.8f);
+            var brick = VisualAssets.Lit(new Color(0.35f, 0.18f, 0.12f), 0.25f);
+            Box(root, "Floor", new Vector3(0, -0.05f, 2f), new Vector3(40f, 0.1f, 14f), earth, false);
+            Box(root, "Forge", new Vector3(-3.5f, 1.1f, 4.5f), new Vector3(2.6f, 2.2f, 1.6f), brick);
+            var coals = VisualAssets.Unlit(new Color(1f, 0.35f, 0.08f) * 1.6f);
+            Box(root, "Coals", new Vector3(-3.5f, 1.25f, 3.69f), new Vector3(1.6f, 0.5f, 0.02f), coals, false);
+            Box(root, "Anvil", new Vector3(2.8f, 0.45f, 3.6f), new Vector3(0.9f, 0.3f, 0.35f), iron);
+            Box(root, "AnvilBase", new Vector3(2.8f, 0.2f, 3.6f), new Vector3(0.45f, 0.4f, 0.35f), iron);
+            for (int i = 0; i < 6; i++)
+                Box(root, "RackBlade", new Vector3(5.2f + i * 0.18f, 1.2f, 4.8f), new Vector3(0.03f, 1.6f, 0.08f), VisualAssets.Lit(new Color(0.75f, 0.76f, 0.8f), 0.85f, 0.9f));
+            Box(root, "BackWall", new Vector3(0, 3f, 6f), new Vector3(40f, 6f, 0.4f), brick);
+            AddLight(root, LightType.Point, new Vector3(-3.5f, 1.4f, 3.2f), Vector3.zero, new Color(1f, 0.45f, 0.15f), 4f, 10f);
+            AddLight(root, LightType.Directional, new Vector3(0, 6, -2), new Vector3(50f, 20f, 0f), new Color(0.55f, 0.5f, 0.6f), 0.35f, shadows: true);
+        }
+
+        // ------------------------------------------------------------------ The Undercurrent (finals)
+
+        private static void BuildFinals(Transform root, ArenaDefinition a)
+        {
+            Ambient(new Color(0.05f, 0.05f, 0.07f), new Color(0.06f, 0.06f, 0.07f), new Color(0.02f, 0.02f, 0.02f), new Color(0.02f, 0.02f, 0.03f), 0.035f);
+            var concrete = VisualAssets.Lit(new Color(0.2f, 0.2f, 0.21f), 0.5f);
+            Box(root, "Basin", new Vector3(0, -0.05f, 2f), new Vector3(40f, 0.1f, 16f), concrete, false);
+            var ring = VisualAssets.Lit(new Color(0.55f, 0.08f, 0.1f), 0.4f);
+            Box(root, "RingLineFront", new Vector3(0, 0.002f, -0.9f), new Vector3(a.StageHalfWidth * 2f, 0.004f, 0.08f), ring, false);
+            Box(root, "RingLineBack", new Vector3(0, 0.002f, 1.6f), new Vector3(a.StageHalfWidth * 2f, 0.004f, 0.08f), ring, false);
+            var crowd = VisualAssets.Lit(new Color(0.08f, 0.08f, 0.09f), 0.2f);
+            for (int row = 0; row < 3; row++)
+            for (int i = -14; i <= 14; i++)
+            {
+                var person = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+                Object.Destroy(person.GetComponent<Collider>());
+                person.transform.SetParent(root, false);
+                person.transform.localPosition = new Vector3(i * 0.9f + (row & 1) * 0.45f, 0.9f + row * 0.6f, 5.5f + row * 1.2f);
+                person.transform.localScale = new Vector3(0.5f, 0.85f, 0.4f);
+                person.GetComponent<MeshRenderer>().sharedMaterial = crowd;
+                person.GetComponent<MeshRenderer>().shadowCastingMode = ShadowCastingMode.Off;
+                person.isStatic = true;
+            }
+            AddLight(root, LightType.Spot, new Vector3(0, 9f, 0.5f), new Vector3(90f, 0f, 0f), new Color(1f, 0.95f, 0.85f), 30f, 16f, 60f, shadows: true);
+            AddLight(root, LightType.Directional, new Vector3(0, 6, -2), new Vector3(30f, 0f, 0f), new Color(0.3f, 0.32f, 0.45f), 0.15f);
         }
     }
 }

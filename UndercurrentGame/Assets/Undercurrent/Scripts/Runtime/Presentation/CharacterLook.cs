@@ -40,7 +40,8 @@ namespace Undercurrent.Runtime.Presentation
                 Detail = QualityService.CharacterDetail,
             };
 
-            if (progress != null || !FighterAppearance.HasFixedOutfit(fighterId))
+            // Player fighters wear their equipped cosmetics; opponents keep their own signature colours.
+            if (progress != null)
             {
                 var outfit = Catalog.GetCosmetic(progress?.EquippedOutfit ?? "outfit_default");
                 var wraps = Catalog.GetCosmetic(progress?.EquippedWraps ?? "wraps_white");
