@@ -36,6 +36,8 @@ namespace Undercurrent.Runtime.Services
         }
 
         public static float VfxDensity { get; private set; } = 1f;
+        /// <summary>Tessellation multiplier for procedural characters.</summary>
+        public static float CharacterDetail { get; private set; } = 1f;
         public static bool ShadowsEnabled { get; private set; } = true;
 
         /// <summary>Picks a conservative default tier from device memory the first time the game runs.</summary>
@@ -57,6 +59,7 @@ namespace Undercurrent.Runtime.Services
             QualitySettings.globalTextureMipmapLimit = v.TextureMipLimit;
             QualitySettings.shadowDistance = v.ShadowDistance;
             VfxDensity = v.VfxDensity;
+            CharacterDetail = tier == GraphicsTier.Low ? 0.6f : tier == GraphicsTier.Medium ? 0.85f : tier == GraphicsTier.High ? 1f : 1.2f;
             ShadowsEnabled = v.Shadows;
 
 #if UC_URP

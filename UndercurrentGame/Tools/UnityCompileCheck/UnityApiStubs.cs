@@ -80,6 +80,8 @@ namespace UnityEngine
         public Vector3 localEulerAngles { get => throw null; set => throw null; }
         public Vector3 localScale { get => throw null; set => throw null; }
         public Transform parent { get => throw null; set => throw null; }
+        public Matrix4x4 localToWorldMatrix => throw null;
+        public Matrix4x4 worldToLocalMatrix => throw null;
         public void SetParent(Transform p, bool worldPositionStays) => throw null;
         public void SetParent(Transform p) => throw null;
         public void SetPositionAndRotation(Vector3 position, Quaternion rotation) => throw null;
@@ -374,6 +376,7 @@ namespace UnityEngine
     public class Renderer : Component
     {
         public Material sharedMaterial { get => throw null; set => throw null; }
+        public Material[] sharedMaterials { get => throw null; set => throw null; }
         public Rendering.ShadowCastingMode shadowCastingMode { get => throw null; set => throw null; }
         public bool receiveShadows { get => throw null; set => throw null; }
         public void GetPropertyBlock(MaterialPropertyBlock properties) => throw null;
@@ -381,6 +384,49 @@ namespace UnityEngine
     }
 
     public sealed class MeshRenderer : Renderer { }
+
+    // Present in real Unity; included so ambiguous-name errors (CS0104) with our own Joint/Pose types are caught.
+    public class Joint : Component { }
+    public struct Pose { public Vector3 position; public Quaternion rotation; }
+
+    public enum SkinQuality { Auto = 0, Bone1 = 1, Bone2 = 2, Bone4 = 4 }
+
+    public struct Bounds { public Bounds(Vector3 center, Vector3 size) { } }
+
+    public struct Matrix4x4
+    {
+        public static Matrix4x4 operator *(Matrix4x4 a, Matrix4x4 b) => throw null;
+    }
+
+    public struct BoneWeight
+    {
+        public int boneIndex0 { get => throw null; set => throw null; }
+        public int boneIndex1 { get => throw null; set => throw null; }
+        public float weight0 { get => throw null; set => throw null; }
+        public float weight1 { get => throw null; set => throw null; }
+    }
+
+    public sealed class Mesh : Object
+    {
+        public Rendering.IndexFormat indexFormat { get => throw null; set => throw null; }
+        public int subMeshCount { get => throw null; set => throw null; }
+        public BoneWeight[] boneWeights { get => throw null; set => throw null; }
+        public Matrix4x4[] bindposes { get => throw null; set => throw null; }
+        public void SetVertices(List<Vector3> inVertices) => throw null;
+        public void SetNormals(List<Vector3> inNormals) => throw null;
+        public void SetTriangles(List<int> triangles, int submesh) => throw null;
+        public void RecalculateBounds() => throw null;
+    }
+
+    public sealed class SkinnedMeshRenderer : Renderer
+    {
+        public Mesh sharedMesh { get => throw null; set => throw null; }
+        public Transform[] bones { get => throw null; set => throw null; }
+        public Transform rootBone { get => throw null; set => throw null; }
+        public SkinQuality quality { get => throw null; set => throw null; }
+        public bool updateWhenOffscreen { get => throw null; set => throw null; }
+        public Bounds localBounds { get => throw null; set => throw null; }
+    }
     public class Collider : Component { }
 
     public enum CameraClearFlags { Skybox = 1, SolidColor = 2 }
@@ -590,6 +636,7 @@ namespace UnityEngine.Rendering
     public enum AmbientMode { Skybox = 0, Trilight = 1, Flat = 3 }
     public enum BlendMode { Zero = 0, One = 1, SrcAlpha = 5, OneMinusSrcAlpha = 10 }
     public enum RenderQueue { Geometry = 2000, Transparent = 3000 }
+    public enum IndexFormat { UInt16 = 0, UInt32 = 1 }
     public class RenderPipelineAsset : Object { }
     public static class GraphicsSettings
     {

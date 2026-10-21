@@ -3,6 +3,7 @@
     "rootNamespace": "Undercurrent.Runtime",
     "references": [
         "Undercurrent.Core",
+        "Undercurrent.CharacterGen",
         "UnityEngine.UI",
         "Unity.InputSystem",
         "Unity.RenderPipelines.Core.Runtime",

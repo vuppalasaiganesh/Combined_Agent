@@ -54,7 +54,8 @@ not inside Unity or on a device.
 | Feature | Status |
 |---|---|
 | Final realistic character models & mocap animation | BLOCKED (B3) — integration pipeline (Animator presenter, controller generator) IMPLEMENTED_UNVERIFIED |
-| Placeholder mannequin + frame-synced procedural poses for all states/moves | IMPLEMENTED_UNVERIFIED |
+| Procedural human characters (skinned mesh, face, hair, beard, clothing) | Generator VERIFIED (mesh validity tests + offline renders in `Docs/preview`); Unity rendering IMPLEMENTED_UNVERIFIED |
+| Frame-synced procedural poses for all states/moves + foot-planting IK | Pose/IK maths VERIFIED (tests); in-engine IMPLEMENTED_UNVERIFIED |
 | Hit reactions, slow-mo final KO, special-move camera push-in, screen shake (settings-scaled) | IMPLEMENTED_UNVERIFIED |
 | Audio pipeline (music crossfade, ambience, pooled SFX, voice channel, licensed-override lookup) + procedural placeholder library | IMPLEMENTED_UNVERIFIED |
 | Haptics (Android VibrationEffect with amplitude, fallbacks, intensity setting) | IMPLEMENTED_UNVERIFIED (B4) |

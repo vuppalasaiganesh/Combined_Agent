@@ -7,8 +7,9 @@ Every asset shipped in the game must be listed here with verified commercial rig
 
 | Asset | Location | Source / creator | Licence | Commercial use | Status |
 |---|---|---|---|---|---|
-| Fighter mannequins (meshes are Unity primitive shapes assembled at runtime) | `Runtime/Presentation/Mannequin.cs` | Project code (AI-assisted) | Project-owned | Yes (placeholder quality) | ORIGINAL |
-| Procedural poses / animation | `Runtime/Presentation/ProceduralPoses.cs`, `FighterView.cs` | Project code | Project-owned | Yes | ORIGINAL |
+| Fighter bodies, heads, hair, clothing (procedurally generated skinned meshes) | `CharacterGen/HumanBodyGenerator.cs` | Project code (AI-assisted); no scans, sculpts or third-party meshes | Project-owned | Yes (stylised, not photoreal) | ORIGINAL |
+| Procedural poses / animation, foot-planting IK | `CharacterGen/PoseLibrary.cs`, `PoseGrounding.cs`, `Runtime/Presentation/FighterView.cs` | Project code | Project-owned | Yes | ORIGINAL |
+| Preview renders | `Docs/preview/*.png` | Rendered by `Tools/CharacterPreview` from the above | Project-owned | Yes | ORIGINAL |
 | Arenas (greybox geometry, lights) | `Runtime/Presentation/ArenaBuilder.cs` | Project code | Project-owned | Yes | ORIGINAL |
 | UI sprites (rounded rect, circle), particle dot, contact-shadow textures | `VisualAssets.cs`, `FighterView.cs` | Generated at runtime | Project-owned | Yes | ORIGINAL |
 | All sound effects, ambiences, music loops | `Runtime/Services/ProceduralAudio.cs` | Synthesised at runtime | Project-owned | Yes | ORIGINAL |

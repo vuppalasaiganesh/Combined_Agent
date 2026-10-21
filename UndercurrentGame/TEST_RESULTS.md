@@ -2,10 +2,10 @@
 
 **Run date:** 2026-10-21 · **Environment:** Linux container, .NET SDK 8.0.132, NUnit 3.14 · **Unity Editor:** not available.
 
-## 1. Core gameplay tests — `dotnet test Tools/CoreTests` → **68 passed, 0 failed**
+## 1. Core gameplay + character tests — `dotnet test Tools/CoreTests` → **76 passed, 0 failed**
 
 These are the same source files Unity's Test Runner executes (`Assets/Undercurrent/Tests/EditMode`), compiled against the
-same Core sources (`Assets/Undercurrent/Scripts/Core`). They have **not** yet been run inside Unity.
+same Core and CharacterGen sources. They have **not** yet been run inside Unity. Latest run: 2026-10-21 (character update).
 
 ```
 Passed AI_DoesNotReadOpponentInput
@@ -15,6 +15,7 @@ Passed AntiAir_KnocksDownAirborneOpponent
 Passed Attack_OutOfRange_Whiffs_WithNoDamage
 Passed Attacks_RequireStamina_PreventingSpam
 Passed Blocking_ReducesDamageToChip_AndDrainsStamina
+Passed BodiesAreLeftRightSymmetric
 Passed BossVictory_UnlocksHaruto_AndCompletesChapter
 Passed Boss_EntersSecondPhase_BelowHalfHealth
 Passed Campaign_Levels_AreCompleteAndChained
@@ -27,10 +28,15 @@ Passed Cosmetics_PurchaseAndEquip
 Passed CounterHit_DealsBonusDamage
 Passed Defeat_GivesPartialXp_NoCurrency_NoCompletion
 Passed Dodge_InvulnerabilityEvadesAttack
+Passed EulerConvention_MatchesUnity
 Passed EveryLevel_PlaysToACompleteMatch
+Passed EveryMove_HasAPose
 Passed EveryTutorialStep_IsCompletableInTheLiveSimulation
 Passed FighterUpgrade_CostsCurrency_AndIsCapped
 Passed FrameAdvantage_MatchesSimulation
+Passed GeneratedBodies_AreValidSkinnedMeshes
+Passed Grounding_LeavesKickingLegLifted
+Passed Grounding_PlantsFeetInEveryGroundedPose
 Passed GuardBreak_WhenBlockingWithoutStamina
 Passed HighAttack_WhiffsOverCrouchingOpponent
 Passed HigherDifficulty_WinsMoreOften
@@ -58,6 +64,7 @@ Passed QuickFight_GivesSmallRewards_AndCountsStats
 Passed ReactionTimes_StayWithinHumanRange
 Passed Replay_GivesReducedCurrency_NoDuplicateUnlocks
 Passed ResetProgress_KeepsSettings
+Passed RestPoseSkinning_IsIdentity
 Passed Roster_FrameData_IsValid
 Passed Round_StartsAfterIntro_WithBothFightersIdle
 Passed SaveAndLoad_RoundTrips
@@ -66,6 +73,7 @@ Passed Simulation_IsDeterministic
 Passed Special_RequiresFullFocus_AndIsInvulnerableOnStartup
 Passed StageBoundaries_AndPushboxes_AreRespected
 Passed Stamina_RegeneratesAfterDelay
+Passed SurfaceNormals_PointOutwards
 Passed Sweep_KnocksDown_AndDownedFighterIsInvulnerable
 Passed Throw_BeatsBlock_AndCausesKnockdown
 Passed Throw_CanBeBrokenDuringTechWindow
@@ -76,8 +84,7 @@ Passed Victory_FirstClear_GrantsRewards_AndUnlocksNextLevel
 Passed Walking_MovesForwardAndBack
 Passed WhiffedParry_HasRecovery_ThatCanBeCounterHit
 Passed Xp_LevelsUpPlayer
-Skipped PrintAIMatchReport
-Total tests: 68 — Passed: 68
+Total tests: 76 — Passed: 76
 ```
 
 The explicit diagnostic `BalanceReport.PrintAIMatchReport` is excluded from the gate and run on demand.
@@ -98,6 +105,7 @@ The explicit diagnostic `BalanceReport.PrintAIMatchReport` is excluded from the 
 | 16 | Character unlocks work | `BossVictory_UnlocksHaruto_AndCompletesChapter`, `NewSave_HasStartingRosterAndFirstLevelOnly` |
 | — | Combat system rules | throws/techs, cancels & combo scaling, counter-hits, hit-stop freeze & buffering, combo cap, special invulnerability, determinism (`Simulation_IsDeterministic`, 3 seeds × 4000 ticks) |
 | — | Tutorial | `EveryTutorialStep_IsCompletableInTheLiveSimulation` (scripted player completes all 15 steps) |
+| — | Procedural humans | `GeneratedBodies_AreValidSkinnedMeshes` (all 6 fighters: indices, weights, normals, height, feet on floor, triangle budget), `SurfaceNormals_PointOutwards`, `BodiesAreLeftRightSymmetric`, `RestPoseSkinning_IsIdentity`, `EulerConvention_MatchesUnity`, `Grounding_PlantsFeetInEveryGroundedPose`, `Grounding_LeavesKickingLegLifted`, `EveryMove_HasAPose` |
 | — | Content integrity | `Roster_FrameData_IsValid`, `Campaign_Levels_AreCompleteAndChained`, `PlayableFighters_HaveDistinctIdentities`, `LightAttacks_ArePlusOnHit_HeavyKicksAreUnsafeOnBlock` |
 
 **Not covered by any executed test:** criteria 1–5, 17–20 (application launch, menus, fighter animation, settings UI,
@@ -126,7 +134,13 @@ The Runtime, Editor and Test scripts were compiled against hand-written stubs of
 This proves our scripts are internally consistent. It does **not** prove they compile against real Unity 6: the stubs
 were written from API knowledge, not from Unity's assemblies. First real compilation must happen in the Editor.
 
-## 4. Not executed
+## 4. Offline character renders
+
+`Docs/preview/*.png` were rendered with `Tools/CharacterPreview` (+ `render.py`, a numpy software rasteriser) from the
+same generator, pose library and IK code the game uses. They show geometry and poses only — not Unity/URP lighting,
+shadows or materials. Measured foot-planting IK cost: ≈74 µs per character per frame (desktop .NET 8, Release).
+
+## 5. Not executed
 
 | Item | Reason |
 |---|---|

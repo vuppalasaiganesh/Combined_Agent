@@ -1,5 +1,10 @@
 using Undercurrent.Core.Combat;
 using UnityEngine;
+using AttackStyle = Undercurrent.CharacterGen.AttackStyle;
+using Joint = Undercurrent.CharacterGen.Joint;
+using NVector3 = System.Numerics.Vector3;
+using Pose = Undercurrent.CharacterGen.Pose;
+using PoseLibrary = Undercurrent.CharacterGen.PoseLibrary;
 
 namespace Undercurrent.Runtime.Presentation
 {
@@ -166,7 +171,6 @@ namespace Undercurrent.Runtime.Presentation
         private readonly Mannequin _m;
         private readonly CharacterLook _look;
         private readonly Pose _target = new Pose();
-        private readonly Pose _scratch = new Pose();
         private readonly Quaternion[] _baseRotations = new Quaternion[Mannequin.JointCount];
         private Vector3 _hipBase;
         private Vector3 _hipCurrent;
@@ -198,20 +202,45 @@ namespace Undercurrent.Runtime.Presentation
             _time += dt;
             _hitTimer += dt;
             float rate = BuildTargetPose(f, sim, dt);
+            ApplyGrounding(f);
 
             float k = 1f - Mathf.Exp(-rate * dt);
             for (int i = 0; i < Mannequin.JointCount; i++)
             {
-                var target = _baseRotations[i] * Quaternion.Euler(_target.Euler[i]);
+                var e = _target.Euler[i];
+                var target = _baseRotations[i] * Quaternion.Euler(e.X, e.Y, e.Z);
                 var j = _m.Joints[i];
                 j.localRotation = Quaternion.Slerp(j.localRotation, target, k);
             }
-            var hipTarget = _hipBase + _target.HipOffset;
+            var hipTarget = _hipBase + new Vector3(_target.HipOffset.X, _target.HipOffset.Y, _target.HipOffset.Z);
             _hipCurrent = Vector3.Lerp(_hipCurrent, hipTarget, k);
             _m[Joint.Hips].localPosition = _hipCurrent;
         }
 
         private static float Ease(float t) => t * t * (3f - 2f * t);
+
+        /// <summary>Foot-planting IK for grounded states (feet neither float nor sink, lifted kick legs stay free).</summary>
+        private void ApplyGrounding(FighterRuntime f)
+        {
+            switch (f.State)
+            {
+                case FighterStateId.Airborne:
+                case FighterStateId.KnockedDown:
+                case FighterStateId.KO:
+                    return;
+                case FighterStateId.GetUp:
+                    if (f.StateFrame < f.Def.GetUpFrames / 2) return;
+                    break;
+                case FighterStateId.Attack:
+                    if (f.CurrentMove.IsAirMove) return;
+                    break;
+                case FighterStateId.WalkForward:
+                case FighterStateId.WalkBack:
+                    _m.Grounding.Apply(_target, plantSecondFoot: false);
+                    return;
+            }
+            _m.Grounding.Apply(_target);
+        }
 
         /// <summary>Fills <see cref="_target"/> and returns the blend rate (higher = snappier).</summary>
         private float BuildTargetPose(FighterRuntime f, FightSimulation sim, float dt)
@@ -232,7 +261,7 @@ namespace Undercurrent.Runtime.Presentation
                     Pose.Lerp(PoseLibrary.Guard, PoseLibrary.Guard, 0f, _target);
                     float breath = Mathf.Sin(_time * 2.2f);
                     _target.Add(Joint.Chest, breath * 1.5f);
-                    _target.HipOffset += new Vector3(0, Mathf.Abs(Mathf.Sin(_time * 4.2f)) * _look.Bounce - _look.Bounce * 0.5f, 0);
+                    _target.HipOffset += new NVector3(0, Mathf.Abs(Mathf.Sin(_time * 4.2f)) * _look.Bounce - _look.Bounce * 0.5f, 0);
                     return 14f;
                 }
 
@@ -240,12 +269,12 @@ namespace Undercurrent.Runtime.Presentation
                 case FighterStateId.WalkBack:
                 {
                     // Phase advances with real displacement so feet do not slide relative to the ground.
-                    float stride = 0.62f * _m.Scale;
+                    float stride = 0.62f * _m.Skeleton.Height / 1.78f;
                     _walkPhase += Mathf.Abs(moved) / stride * Mathf.PI * 2f * (f.State == FighterStateId.WalkBack ? -1f : 1f);
                     float sL = Mathf.Sin(_walkPhase), sR = Mathf.Sin(_walkPhase + Mathf.PI);
                     _target.Add(Joint.HipL, -sL * 16f).Add(Joint.KneeL, Mathf.Max(0f, sL) * 26f);
                     _target.Add(Joint.HipR, -sR * 16f).Add(Joint.KneeR, Mathf.Max(0f, sR) * 26f);
-                    _target.HipOffset += new Vector3(0, Mathf.Abs(Mathf.Cos(_walkPhase)) * 0.025f - 0.02f, 0);
+                    _target.HipOffset += new NVector3(0, Mathf.Abs(Mathf.Cos(_walkPhase)) * 0.025f - 0.02f, 0);
                     return 16f;
                 }
 
@@ -265,7 +294,7 @@ namespace Undercurrent.Runtime.Presentation
                 {
                     var b = f.IsCrouching ? PoseLibrary.CrouchBlock : PoseLibrary.Block;
                     Pose.Lerp(b, b, 0f, _target);
-                    _target.HipOffset += new Vector3(0, 0, -0.05f);
+                    _target.HipOffset += new NVector3(0, 0, -0.05f);
                     _target.Add(Joint.Spine, -6f);
                     return 40f;
                 }
@@ -377,7 +406,8 @@ namespace Undercurrent.Runtime.Presentation
             {
                 // Finish the rotation instead of unwinding backwards.
                 float t = Mathf.Clamp01((frame - m.LastActiveFrame) / (float)Mathf.Max(1, m.Recovery));
-                _target.Euler[(int)Joint.Hips].y = Mathf.Lerp(185f, 382f, Ease(t));
+                var hips = _target.Euler[(int)Joint.Hips];
+                _target.Euler[(int)Joint.Hips] = new NVector3(hips.X, Mathf.Lerp(185f, 382f, Ease(t)), hips.Z);
             }
             // Attacks track the authored timeline tightly; the strike pose must be on screen on the first active frame.
             return 60f;

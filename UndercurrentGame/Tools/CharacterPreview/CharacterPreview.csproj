@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Offline preview of the procedural human characters: exports posed meshes for Tools/CharacterPreview/render.py. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="../../Assets/Undercurrent/Scripts/Core/**/*.cs" />
+    <Compile Include="../../Assets/Undercurrent/Scripts/CharacterGen/**/*.cs" />
+  </ItemGroup>
+</Project>

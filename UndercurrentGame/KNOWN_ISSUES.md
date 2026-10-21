@@ -18,14 +18,18 @@
 3. URP Lit/Unlit/Particles material property names (`_BaseColor`, `_Surface`, `_SrcBlend`, `_EmissionColor`…) and manual keyword setup produce the intended look (transparent contact shadow, additive sparks, hit-flash emission).
 4. Legacy `UnityEngine.UI.Text` with `LegacyRuntime.ttf` is available in the URP template's uGUI version.
 5. Unity adds the Android `VIBRATE` permission because `Handheld.Vibrate` is referenced; `VibrationEffect.createOneShot` JNI call signature (long, int).
-6. Mirroring fighters with negative X scale renders correctly (Unity flips winding for negative scale).
+6. Mirroring fighters with negative X scale renders correctly (Unity flips winding for negative scale), including the SkinnedMeshRenderer.
+8. The generated mesh's bind poses (`joint.worldToLocalMatrix * root.localToWorldMatrix`) and 2-bone weights render as in the offline preview.
 7. Particle `EmitParams` with `applyShapeToPosition` emits around the given position with shape velocities.
 
 ## Gameplay / design issues
 
-- Placeholder procedural animation: poses are hand-authored joint angles on a primitive mannequin. Expect some
-  unnatural angles (e.g. hook/roundhouse arcs), no IK foot planting, no cloth. Foot sliding is reduced by driving the
-  walk cycle from real displacement, but not eliminated.
+- Characters are procedurally generated humans (continuous skinned meshes) — clearly human but stylised: flat-coloured
+  materials, no skin/cloth textures, no facial animation, no finger animation (fists are always wrapped), hair is a
+  sculpted shell rather than strands. Photoreal fighters still need licensed/commissioned assets (B3).
+- Animation is procedural key poses (not motion capture). Foot-planting IK now keeps feet on the floor in grounded states;
+  some strikes (hooks, roundhouse) are approximations. No cloth simulation.
+- Foot-planting IK costs ≈74 µs per character per frame on desktop .NET (measured); mobile cost unmeasured (B4).
 - Fighters never cross sides (no cross-ups). Deliberate simplification for mobile readability.
 - Only one parry window per fighter (no directional parries). Parry is mostly a read on slow moves at AI reaction speeds.
 - AI-vs-AI throws are frequent (≈2 per round) because heavy blocking makes throws the correct answer — re-tune after human playtests.

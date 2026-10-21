@@ -4,6 +4,9 @@ An original 2.5D one-on-one martial-arts fighting game for Android (iOS-compatib
 "Undercurrent" is an **internal working title only** — it is not trademark-cleared and a conflicting indie title is known
 (see `LEGAL_IP_AUDIT.md`).
 
+![Fighter lineup (offline render of the in-game procedural characters)](Docs/preview/lineup.png)
+![Fighting stance](Docs/preview/stance.png)
+
 > **Honest status:** the gameplay core (combat engine, AI, rounds, progression, saves, tutorial logic) is implemented and
 > verified by 68 automated tests. The Unity presentation layer (rendering, UI, input, audio, haptics, build tooling) is
 > implemented but **has never been compiled or run inside a Unity Editor**, because no Editor could be installed in the
@@ -20,12 +23,14 @@ UndercurrentGame/
       AI/                FightAI (reaction-delayed perception), difficulty profiles, boss phases
       Content/           Fighter roster + movesets, campaign/arenas, tutorial script
       Progression/       Save data, rewards, upgrades/skills, cosmetics, achievements, save repository/migration, online-service interfaces
+    Scripts/CharacterGen/ Engine-independent procedural human generator, pose library, FK/skinning solver, foot-planting IK
     Scripts/Runtime/     Unity layer: GameApp bootstrap, fight controller, presentation, UI screens, services
     Scripts/Editor/      Project setup, Android build entry points, Animator controller generator
     Tests/EditMode/      NUnit tests (run by Unity Test Runner AND by Tools/CoreTests)
   Tools/
     CoreTests/           .NET 8 test project compiling Core + Tests sources directly
     UnityCompileCheck/   Type-check of Unity-facing code against NON-AUTHORITATIVE API stubs
+    CharacterPreview/    Offline preview: exports posed characters; render.py rasterises them to PNG (no Unity needed)
     run_checks.sh        Runs both of the above
   README.md  LEGAL_IP_AUDIT.md  ASSET_LICENSES.md  TEST_RESULTS.md  KNOWN_ISSUES.md  PROGRESS.md
 ```
@@ -86,7 +91,29 @@ Unity -batchmode -quit -projectPath <project> \
 The build script exits non-zero unless Unity's `BuildReport` reports success **and** the output file exists.
 Replace the placeholder application id before any store upload.
 
+## Characters
+
+Fighters are **procedurally generated humans** (`Scripts/CharacterGen/HumanBodyGenerator.cs`): one continuous skinned
+mesh per fighter with anatomical proportions, muscle profiles, a sculpted head (eyes with lids, brows, nose, lips, ears),
+hair styles, beards and clothing layers that share the body's skin weights. Joint rotations come from the pose library
+and **foot-planting IK** (`PoseGrounding.cs`) keeps feet on the floor in every grounded state. Detail scales with the
+graphics tier (≈11k triangles on Low, ≈29k on High per fighter).
+
+They are clearly human but stylised (flat colours, no skin textures or facial animation). For photoreal fighters, use the
+licensed-model path below; both paths share the same skeleton/state names.
+
+Preview without Unity (renders PNGs from the exact runtime code):
+```bash
+cd UndercurrentGame/Tools/CharacterPreview
+dotnet run -- /tmp/preview mara:guard:90 rook:guard:-90     # fighterId:pose:yaw (pose = rest, guard, crouch, block, jab, frontkick, …)
+python3 render.py /tmp/preview/stance.png --side /tmp/preview/mara_guard_90.mesh /tmp/preview/rook_guard_-90.mesh
+```
+
 ## Integrating licensed character models
+
+Typical sources for realistic humans: MakeHuman / MPFB (check the licence of the assets you export), Adobe Mixamo
+characters and martial-arts animation clips, Reallusion Character Creator, or commissioned scans. **Read and record each
+licence** (game use, mobile distribution, modification) before shipping.
 
 1. Import an FBX/glTF humanoid with a **Humanoid** avatar (commercially licensed; record it in `ASSET_LICENSES.md`).
 2. Put its clips in a folder named after the fighter id (`mara`, `dima`, `haruto`, `ines`, `rook`, `sable`). Name clips after

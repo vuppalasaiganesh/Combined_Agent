@@ -28,3 +28,4 @@ Tools/**/obj/
 TestResults/
 !Tools/CoreTests/Undercurrent.Core.Tests.csproj
 !Tools/UnityCompileCheck/*.csproj
+!Tools/CharacterPreview/*.csproj

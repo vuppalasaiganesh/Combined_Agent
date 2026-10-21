@@ -1,13 +1,14 @@
 using System.Collections.Generic;
 using Undercurrent.Core.Combat;
-using UnityEngine;
+using System;
+using System.Numerics;
 
-namespace Undercurrent.Runtime.Presentation
+namespace Undercurrent.CharacterGen
 {
     /// <summary>Joint rotations (Euler degrees, local) plus a hip offset in character space.</summary>
     public sealed class Pose
     {
-        public readonly Vector3[] Euler = new Vector3[Mannequin.JointCount];
+        public readonly Vector3[] Euler = new Vector3[HumanSkeleton.JointCount];
         public Vector3 HipOffset;
 
         public Pose Copy()
@@ -35,6 +36,15 @@ namespace Undercurrent.Runtime.Presentation
             return this;
         }
 
+        /// <summary>Shortest-path angle interpolation in degrees.</summary>
+        public static float LerpAngle(float a, float b, float t)
+        {
+            float delta = (b - a) % 360f;
+            if (delta > 180f) delta -= 360f;
+            if (delta < -180f) delta += 360f;
+            return a + delta * Math.Max(0f, Math.Min(1f, t));
+        }
+
         /// <summary>Angle-wise interpolation into <paramref name="into"/> (used to author timelines, not for final blending).</summary>
         public static Pose Lerp(Pose a, Pose b, float t, Pose into)
         {
@@ -42,7 +52,7 @@ namespace Undercurrent.Runtime.Presentation
             {
                 var ea = a.Euler[i];
                 var eb = b.Euler[i];
-                into.Euler[i] = new Vector3(Mathf.LerpAngle(ea.x, eb.x, t), Mathf.LerpAngle(ea.y, eb.y, t), Mathf.LerpAngle(ea.z, eb.z, t));
+                into.Euler[i] = new Vector3(LerpAngle(ea.X, eb.X, t), LerpAngle(ea.Y, eb.Y, t), LerpAngle(ea.Z, eb.Z, t));
             }
             into.HipOffset = Vector3.Lerp(a.HipOffset, b.HipOffset, t);
             return into;
@@ -72,9 +82,9 @@ namespace Undercurrent.Runtime.Presentation
 
         public static readonly Pose Crouch = Guard.Copy()
             .Set(Joint.Spine, 24, 4).Set(Joint.Chest, 10, 6)
-            .Set(Joint.HipL, -80, 0, -6).Set(Joint.KneeL, 112).Set(Joint.FootL, -30)
-            .Set(Joint.HipR, -30, 0, 6).Set(Joint.KneeR, 118).Set(Joint.FootR, -70)
-            .Hip(0, -0.4f, -0.05f);
+            .Set(Joint.HipL, -68, 0, -8).Set(Joint.KneeL, 98).Set(Joint.FootL, -30)
+            .Set(Joint.HipR, -42, 0, 8).Set(Joint.KneeR, 92).Set(Joint.FootR, -46)
+            .Hip(0, -0.3f, -0.05f);
 
         public static readonly Pose Block = Guard.Copy()
             .Set(Joint.Chest, 14, 4).Set(Joint.Neck, 14, -12)
@@ -153,20 +163,20 @@ namespace Undercurrent.Runtime.Presentation
             d[AttackStyle.CrouchJab] = (Crouch.Copy().Set(Joint.ShoulderL, -60, 0, 8).Set(Joint.ElbowL, -120),
                 Crouch.Copy().Set(Joint.Chest, 6, -8).Set(Joint.ShoulderL, -98, 0, 4).Set(Joint.ElbowL, -6));
             d[AttackStyle.Cross] = (Guard.Copy().Set(Joint.Chest, 4, 16).Set(Joint.Hips, 0, 28),
-                Guard.Copy().Set(Joint.Hips, 0, -14).Set(Joint.Spine, 10, -10).Set(Joint.Chest, 6, -30).Set(Joint.ShoulderR, -92, 0, -2).Set(Joint.ElbowR, -6)
+                Guard.Copy().Set(Joint.Hips, 0, 2).Set(Joint.Spine, 10, -4).Set(Joint.Chest, 6, -14).Set(Joint.ShoulderR, -92, 0, -2).Set(Joint.ElbowR, -6)
                     .Set(Joint.ShoulderL, -40, 0, 30).Set(Joint.ElbowL, -130).Set(Joint.HipR, 4, 0, 4).Set(Joint.FootR, -45).Hip(0, -0.08f, 0.08f));
             d[AttackStyle.Lunge] = (d[AttackStyle.Cross].Item1, d[AttackStyle.Cross].Item2.Copy().Set(Joint.Spine, 18, -10).Set(Joint.HipL, -40).Set(Joint.KneeL, 50).Hip(0, -0.16f, 0.2f));
             d[AttackStyle.LeadHook] = (Guard.Copy().Set(Joint.Chest, 4, 22),
-                Guard.Copy().Set(Joint.Hips, 0, -6).Set(Joint.Chest, 6, -26).Set(Joint.ShoulderL, -82, 62, 0).Set(Joint.ElbowL, -95).Hip(0, -0.09f, 0.03f));
+                Guard.Copy().Set(Joint.Hips, 0, 4).Set(Joint.Chest, 6, -12).Set(Joint.ShoulderL, -82, 62, 0).Set(Joint.ElbowL, -95).Hip(0, -0.09f, 0.03f));
             d[AttackStyle.BodyHook] = (Crouch.Copy().Set(Joint.Hips, 0, 30),
-                Guard.Copy().Set(Joint.Spine, 22, -16, 10).Set(Joint.Chest, 6, -26).Set(Joint.ShoulderR, -60, -55, 0).Set(Joint.ElbowR, -95).Hip(0, -0.2f, 0.05f));
+                Guard.Copy().Set(Joint.Spine, 22, -6, 10).Set(Joint.Chest, 6, -14).Set(Joint.ShoulderR, -60, -55, 0).Set(Joint.ElbowR, -95).Hip(0, -0.2f, 0.05f));
             d[AttackStyle.Uppercut] = (Crouch.Copy().Set(Joint.ShoulderR, -10, 0, -10).Set(Joint.ElbowR, -100),
-                Guard.Copy().Set(Joint.Hips, 0, -10).Set(Joint.Spine, -6, -12).Set(Joint.Chest, -8, -24).Set(Joint.ShoulderR, -150, 0, -6).Set(Joint.ElbowR, -40)
+                Guard.Copy().Set(Joint.Hips, 0, 2).Set(Joint.Spine, -6, -6).Set(Joint.Chest, -8, -12).Set(Joint.ShoulderR, -150, 0, -6).Set(Joint.ElbowR, -40)
                     .Set(Joint.KneeL, 10).Set(Joint.KneeR, 10).Hip(0, 0.02f, 0.05f));
             d[AttackStyle.Elbow] = (Guard.Copy().Set(Joint.Chest, 4, 24),
-                Guard.Copy().Set(Joint.Chest, 6, -22).Set(Joint.ShoulderL, -92, 72, 0).Set(Joint.ElbowL, -150).Hip(0, -0.08f, 0.06f));
+                Guard.Copy().Set(Joint.Chest, 6, -10).Set(Joint.ShoulderL, -92, 72, 0).Set(Joint.ElbowL, -150).Hip(0, -0.08f, 0.06f));
             d[AttackStyle.Overhand] = (Guard.Copy().Set(Joint.ShoulderR, -150, 0, -30).Set(Joint.ElbowR, -60).Set(Joint.Chest, -6, 20),
-                Guard.Copy().Set(Joint.Spine, 20, -14).Set(Joint.Chest, 14, -32).Set(Joint.ShoulderR, -100, 0, 10).Set(Joint.ElbowR, -10).Hip(0, -0.14f, 0.1f));
+                Guard.Copy().Set(Joint.Spine, 20, -6).Set(Joint.Chest, 14, -16).Set(Joint.ShoulderR, -100, 0, 10).Set(Joint.ElbowR, -10).Hip(0, -0.14f, 0.1f));
             d[AttackStyle.LeapPunch] = (Crouch, d[AttackStyle.Cross].Item2.Copy().Set(Joint.HipL, -60).Set(Joint.KneeL, 80).Set(Joint.HipR, 30).Hip(0, 0.18f, 0.2f));
             d[AttackStyle.Charge] = (Crouch.Copy().Set(Joint.Spine, 30, 40),
                 Guard.Copy().Set(Joint.Hips, 0, 60).Set(Joint.Spine, 32, 10).Set(Joint.Chest, 10).Set(Joint.ShoulderL, -40, 0, 50).Set(Joint.ElbowL, -100)
@@ -198,7 +208,7 @@ namespace Undercurrent.Runtime.Presentation
                 Airborne.Copy().Set(Joint.Spine, 20).Set(Joint.ShoulderR, -80).Set(Joint.ElbowR, -20).Set(Joint.ShoulderL, -80).Set(Joint.ElbowL, -20));
             d[AttackStyle.Throw] = (Guard, ThrowGrab);
             d[AttackStyle.Special] = (Crouch.Copy().Set(Joint.Spine, 26, 30).Set(Joint.ShoulderR, -20, 0, -30).Set(Joint.ElbowR, -130),
-                Guard.Copy().Set(Joint.Hips, 0, -20).Set(Joint.Spine, 16, -14).Set(Joint.Chest, 8, -34).Set(Joint.ShoulderR, -94).Set(Joint.ElbowR, -2)
+                Guard.Copy().Set(Joint.Hips, 0, -4).Set(Joint.Spine, 16, -6).Set(Joint.Chest, 8, -16).Set(Joint.ShoulderR, -94).Set(Joint.ElbowR, -2)
                     .Set(Joint.ShoulderL, -94, 0, 20).Set(Joint.ElbowL, -20).Set(Joint.HipL, -55).Set(Joint.KneeL, 60).Set(Joint.HipR, 25).Set(Joint.KneeR, 10).Hip(0, -0.2f, 0.3f));
             return d;
         }

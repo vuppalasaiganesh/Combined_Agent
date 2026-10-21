@@ -3,6 +3,7 @@
     "rootNamespace": "Undercurrent.Tests",
     "references": [
         "Undercurrent.Core",
+        "Undercurrent.CharacterGen",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],

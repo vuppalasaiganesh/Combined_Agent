@@ -15,6 +15,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../../Assets/Undercurrent/Scripts/Core/**/*.cs" />
+    <Compile Include="../../Assets/Undercurrent/Scripts/CharacterGen/**/*.cs" />
     <Compile Include="../../Assets/Undercurrent/Tests/EditMode/**/*.cs" />
   </ItemGroup>
   <ItemGroup>
