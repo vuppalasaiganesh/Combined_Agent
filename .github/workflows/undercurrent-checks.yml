@@ -1,0 +1,20 @@
+name: Undercurrent checks
+
+# Runs the engine-independent gameplay tests and the (non-authoritative) Unity-layer type-check.
+# Does not need a Unity licence; it does not replace testing inside the Unity Editor.
+on:
+  push:
+    paths: ["UndercurrentGame/**", ".github/workflows/undercurrent-checks.yml"]
+  pull_request:
+    paths: ["UndercurrentGame/**", ".github/workflows/undercurrent-checks.yml"]
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Core tests and Unity-layer type-check
+        run: UndercurrentGame/Tools/run_checks.sh
