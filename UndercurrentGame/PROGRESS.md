@@ -61,15 +61,20 @@ not inside Unity or on a device.
 | Haptics (Android VibrationEffect with amplitude, fallbacks, intensity setting) | IMPLEMENTED_UNVERIFIED (B4) |
 | Pooled VFX (sparks, block, parry, dust) scaled by graphics tier | IMPLEMENTED_UNVERIFIED |
 | Character selection with stats/strengths/weaknesses | IMPLEMENTED_UNVERIFIED |
-| 3 playable fighters with distinct styles, stats, timing, combos; 3 additional opponents | VERIFIED (data & simulation) |
-| 8+ fighter roster | NOT_IMPLEMENTED (6 defined) |
+| 7 playable fighters with distinct styles, stats, timing, combos; 4 opponent-only fighters incl. final boss (11 total) | VERIFIED (data & simulation) |
+| Weapons mode: knife / sword / staff movesets, reach-vs-speed tiers, clash, disarm on guard break/throw + 5 s rearm, knife counter-hit bonus, blade chip | VERIFIED (simulation tests + weapon matchup diagnostic) |
+| Weapon meshes held in the right hand, dropped weapon on the floor while disarmed, weapon strike poses | Mesh/pose generation VERIFIED offline (`Docs/preview/weapons.png`); in Unity IMPLEMENTED_UNVERIFIED |
+| Armory screen, weapon pickers in briefing/versus, armed touch labels, clash/disarm audio & callouts | IMPLEMENTED_UNVERIFIED (type-checked) |
 
 ### Phase D — Campaign
 | Feature | Status |
 |---|---|
-| Chapter 1: 3 complete levels (opponent, arena, difficulty, rounds, rewards, objectives, unlocks, story) | VERIFIED (data, unlock chain, each level plays to completion AI-vs-AI) |
+| 30 levels in 6 chapters (opponent, arena, difficulty, rounds, rewards, objectives, unlocks, story) | VERIFIED (data, unlock chain, every level incl. every gauntlet bout plays to completion AI-vs-AI) |
+| Level formats: Standard, Weapons (armed opponent / armed duel), Gauntlet (3–5 bouts, health carries over with 25–30 % recovery) | VERIFIED (logic); bout flow UI IMPLEMENTED_UNVERIFIED |
+| Rule modifiers (damage dealt/taken, start health, health not restored between rounds, stamina regen) | VERIFIED |
+| 3-star rating per level, chapter star totals, weapon unlocks as rewards, save v2 migration | Logic VERIFIED; screens IMPLEMENTED_UNVERIFIED |
+| 7 arenas (pier, freight yard, cistern, market, rooftop, forge, finals) | Greybox IMPLEMENTED_UNVERIFIED |
 | Campaign / briefing / results screens | IMPLEMENTED_UNVERIFIED |
-| Chapters 2–6 (27 more levels) | NOT_IMPLEMENTED (chapters listed as "not built") |
 | Guided tutorial covering every core action, auto-run before level 1 | Logic VERIFIED; overlay IMPLEMENTED_UNVERIFIED |
 
 ### Phase E — Product readiness
@@ -96,5 +101,5 @@ not inside Unity or on a device.
 2. Play-test the slice on device: touch ergonomics, readability of placeholder animation, hit feedback timing; profile on a low-end device.
 3. Add Play Mode smoke tests (boot → menu → fight → results).
 4. Acquire/commission licensed character models + animations; integrate through the Animator presenter.
-5. Build Chapter 2 (levels 4–8) with two new opponents and arena, after slice validation.
+5. Human playtest of weapons and chapters 2–6; re-tune weapon frame data and level difficulty from real players, not AI-vs-AI.
 6. Title clearance and store configuration.

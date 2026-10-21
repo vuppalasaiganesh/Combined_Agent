@@ -6,9 +6,10 @@ An original 2.5D one-on-one martial-arts fighting game for Android (iOS-compatib
 
 ![Fighter lineup (offline render of the in-game procedural characters)](Docs/preview/lineup.png)
 ![Fighting stance](Docs/preview/stance.png)
+![Weapons mode: knife, sword, staff](Docs/preview/weapons.png)
 
 > **Honest status:** the gameplay core (combat engine, AI, rounds, progression, saves, tutorial logic) is implemented and
-> verified by 68 automated tests. The Unity presentation layer (rendering, UI, input, audio, haptics, build tooling) is
+> verified by 97 automated tests. The Unity presentation layer (rendering, UI, input, audio, haptics, build tooling) is
 > implemented but **has never been compiled or run inside a Unity Editor**, because no Editor could be installed in the
 > development environment. Characters, environments and audio are **code-generated placeholders**, not final art.
 > No APK/AAB has been built. Details: `PROGRESS.md`, `KNOWN_ISSUES.md`, `TEST_RESULTS.md`.
@@ -90,6 +91,17 @@ Unity -batchmode -quit -projectPath <project> \
 ```
 The build script exits non-zero unless Unity's `BuildReport` reports success **and** the output file exists.
 Replace the placeholder application id before any store upload.
+
+## Game modes and campaign
+
+- **30-level campaign** in 6 chapters, each with its own arena, ending in a best-of-5 final boss. Levels earn up to 3 stars
+  (win + objectives) and unlock fighters and weapons.
+- **Level formats:** Standard duels, **Weapons** levels (armed opponent or armed duel), and **Gauntlets** (3–5 opponents in a
+  row; health carries over with 25–30 % recovery between bouts). Some levels add rules: Last Breath (every round starts at
+  40 % health), Exhaustion (half-speed stamina for both), Iron Body (your strikes deal 80 %), Forge Trial (opponent +15 %).
+- **Weapons:** knife (fast, short, extra counter-hit damage), sword (balanced, strong slashes), staff (longest reach, slow).
+  Weapons replace the punch buttons and the special; kicks and throws stay. Simultaneous strikes **clash**; a guard break or
+  throw **disarms** the opponent for 5 s. Equip unlocked weapons in the Armory; Versus lets both sides pick a weapon.
 
 ## Characters
 

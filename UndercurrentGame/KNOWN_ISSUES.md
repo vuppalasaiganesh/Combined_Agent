@@ -20,6 +20,7 @@
 5. Unity adds the Android `VIBRATE` permission because `Handheld.Vibrate` is referenced; `VibrationEffect.createOneShot` JNI call signature (long, int).
 6. Mirroring fighters with negative X scale renders correctly (Unity flips winding for negative scale), including the SkinnedMeshRenderer.
 8. The generated mesh's bind poses (`joint.worldToLocalMatrix * root.localToWorldMatrix`) and 2-bone weights render as in the offline preview.
+9. The held weapon's grip offset/rotation on a **licensed** humanoid rig (`HumanBodyBones.RightHand`) matches the procedural rig; it is tuned only for the procedural skeleton.
 7. Particle `EmitParams` with `applyShapeToPosition` emits around the given position with shape velocities.
 
 ## Gameplay / design issues
@@ -33,8 +34,11 @@
 - Fighters never cross sides (no cross-ups). Deliberate simplification for mobile readability.
 - Only one parry window per fighter (no directional parries). Parry is mostly a read on slow moves at AI reaction speeds.
 - AI-vs-AI throws are frequent (≈2 per round) because heavy blocking makes throws the correct answer — re-tune after human playtests.
-- Campaign: only Chapter 1 (3 levels) is built. Chapters 2–6 are listed in the UI as "not built yet". Target is 30 levels.
-- Only three arenas; level 1 and Training share one arena.
+- Campaign difficulty curve (30 levels) is tuned against AI-vs-AI runs only; real players may find gauntlets / Iron Body / Exhaustion levels too hard or too easy.
+- Weapons are balanced from AI-vs-AI data only (`TEST_RESULTS.md` §2). Unarmed loses ≈75–80 % to any weapon by design; levels that arm only the opponent compensate with rules.
+- Weapon strike poses are procedural approximations (no real sword/staff technique animation); weapons have no physics or trails.
+- A disarmed fighter fights with fists for 5 s; the dropped weapon is visual only (cannot be picked up by either fighter).
+- Arenas are greybox; level 1 and Training share one arena.
 - "Voice" sounds are synthesised breaths, not recorded effort vocals.
 - Optional objectives are evaluated only on victory (by design).
 - Mirror-match colour swap applies to Versus only.
