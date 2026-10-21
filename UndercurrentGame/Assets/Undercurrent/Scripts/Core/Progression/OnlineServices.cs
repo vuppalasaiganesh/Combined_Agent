@@ -30,7 +30,10 @@ namespace Undercurrent.Core.Progression
         Failed,
     }
 
-    /// <summary>Real-money purchases (cosmetics/subscriptions only). Gameplay never depends on this.</summary>
+    /// <summary>
+    /// Real-money purchases (coin packs). Everything coins buy can also be earned by playing, so the game is fully
+    /// playable when this is unavailable.
+    /// </summary>
     public interface IBillingService
     {
         IntegrationStatus Status { get; }
@@ -66,6 +69,27 @@ namespace Undercurrent.Core.Progression
         public IntegrationStatus Status => IntegrationStatus.NotConfigured;
         public IReadOnlyList<StoreProduct> Products { get; } = new List<StoreProduct>();
         public void Purchase(string productId, Action<BillingOutcome> callback) => callback?.Invoke(BillingOutcome.Unavailable);
+        public void RestorePurchases(Action<IReadOnlyList<string>> callback) => callback?.Invoke(new List<string>());
+    }
+
+    /// <summary>
+    /// Editor/development-build stand-in so the coin-pack flow can be exercised. Reports
+    /// <see cref="IntegrationStatus.DevelopmentMock"/>; the UI labels its purchases as test purchases. Never ship it.
+    /// </summary>
+    public sealed class DevelopmentMockBillingService : IBillingService
+    {
+        private readonly List<StoreProduct> _products = new List<StoreProduct>();
+
+        public DevelopmentMockBillingService()
+        {
+            foreach (var p in Shop.CoinPacks)
+                _products.Add(new StoreProduct { ProductId = p.ProductId, Title = p.DisplayName, LocalizedPrice = "TEST" });
+        }
+
+        public IntegrationStatus Status => IntegrationStatus.DevelopmentMock;
+        public IReadOnlyList<StoreProduct> Products => _products;
+        public void Purchase(string productId, Action<BillingOutcome> callback) =>
+            callback?.Invoke(Shop.GetCoinPack(productId) != null ? BillingOutcome.Purchased : BillingOutcome.Failed);
         public void RestorePurchases(Action<IReadOnlyList<string>> callback) => callback?.Invoke(new List<string>());
     }
 

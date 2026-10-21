@@ -22,7 +22,14 @@ namespace Undercurrent.Core.Progression
         public List<string> OwnedCosmetics = new List<string>();
         public List<LevelProgress> Levels = new List<LevelProgress>();
         public List<string> UnlockedAchievements = new List<string>();
+        /// <summary>Weapons the player owns (bought in the Shop; saves before v3 kept their free campaign weapons).</summary>
         public List<string> UnlockedWeapons = new List<string>();
+        /// <summary>Upgrade level of each owned weapon (1..5).</summary>
+        public List<WeaponProgress> WeaponLevels = new List<WeaponProgress>();
+        /// <summary>Armour tier 0..5, shared by every fighter.</summary>
+        public int ArmorTier;
+        /// <summary>Total Coins received from coin packs (support/refund bookkeeping).</summary>
+        public int PurchasedCoins;
 
         public int MatchesPlayed;
         public int TotalWins;
@@ -66,6 +73,19 @@ namespace Undercurrent.Core.Progression
         }
 
         public bool IsLevelCompleted(string id) => GetLevel(id)?.Completed ?? false;
+
+        public WeaponProgress GetWeapon(string id)
+        {
+            foreach (var w in WeaponLevels) if (w.WeaponId == id) return w;
+            return null;
+        }
+    }
+
+    [Serializable]
+    public sealed class WeaponProgress
+    {
+        public string WeaponId;
+        public int Level = 1;
     }
 
     [Serializable]

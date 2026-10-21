@@ -10,7 +10,12 @@ namespace Undercurrent.Runtime.Services
         public HapticsService Haptics;
 
         // Optional online services: offline implementations until real backends are configured (see KNOWN_ISSUES.md).
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        // Lets the coin-pack flow be tested without a store; purchases are labelled TEST and cost nothing.
+        public IBillingService Billing = new DevelopmentMockBillingService();
+#else
         public IBillingService Billing = new UnconfiguredBillingService();
+#endif
         public ICloudSaveService CloudSave = new UnconfiguredCloudSaveService();
         public ILeaderboardService Leaderboards = new UnconfiguredLeaderboardService();
         public IAccountService Account = new OfflineAccountService();

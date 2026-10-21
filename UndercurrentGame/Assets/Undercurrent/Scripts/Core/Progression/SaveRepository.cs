@@ -32,7 +32,7 @@ namespace Undercurrent.Core.Progression
     public static class SaveMigrator
     {
         /// <summary>Bump when the save layout changes, and add a step to <see cref="Steps"/>.</summary>
-        public const int CurrentVersion = 2;
+        public const int CurrentVersion = 3;
 
         /// <summary>Migration steps keyed by the version they upgrade FROM. Version 0 = pre-release/unversioned saves.</summary>
         private static readonly Dictionary<int, Action<SaveData>> Steps = new Dictionary<int, Action<SaveData>>
@@ -50,6 +50,9 @@ namespace Undercurrent.Core.Progression
                     }
                 }
             },
+            // v3 sells weapons for Coins and adds armour and weapon levels. Weapons a v2 save already won are kept
+            // (as level 1); normalisation creates their level entries.
+            { 2, s => { } },
         };
 
         /// <summary>Upgrades in place. Returns false when the save comes from a newer build and must not be modified.</summary>
@@ -78,6 +81,18 @@ namespace Undercurrent.Core.Progression
             if (s.UnlockedAchievements == null) { s.UnlockedAchievements = new List<string>(); changed = true; }
             if (s.UnlockedWeapons == null) { s.UnlockedWeapons = new List<string>(); changed = true; }
             changed |= s.UnlockedWeapons.RemoveAll(id => WeaponCatalog.Get(id) == null) > 0;
+            if (s.WeaponLevels == null) { s.WeaponLevels = new List<WeaponProgress>(); changed = true; }
+            changed |= s.WeaponLevels.RemoveAll(w => w == null || !s.UnlockedWeapons.Contains(w.WeaponId)) > 0;
+            foreach (var id in s.UnlockedWeapons)
+                if (s.GetWeapon(id) == null) { s.WeaponLevels.Add(new WeaponProgress { WeaponId = id, Level = 1 }); changed = true; }
+            foreach (var w in s.WeaponLevels)
+            {
+                int lvl = Math.Max(1, Math.Min(Shop.MaxWeaponLevel, w.Level));
+                if (lvl != w.Level) { w.Level = lvl; changed = true; }
+            }
+            int armor = Math.Max(0, Math.Min(Shop.MaxArmorTier, s.ArmorTier));
+            if (armor != s.ArmorTier) { s.ArmorTier = armor; changed = true; }
+            if (s.PurchasedCoins < 0) { s.PurchasedCoins = 0; changed = true; }
             if (s.Settings == null) { s.Settings = new SettingsData(); changed = true; }
             if (s.Settings.ControlOffsets == null) { s.Settings.ControlOffsets = new List<ControlOffset>(); changed = true; }
 

@@ -9,7 +9,7 @@ An original 2.5D one-on-one martial-arts fighting game for Android (iOS-compatib
 ![Weapons mode: knife, sword, staff](Docs/preview/weapons.png)
 
 > **Honest status:** the gameplay core (combat engine, AI, rounds, progression, saves, tutorial logic) is implemented and
-> verified by 97 automated tests. The Unity presentation layer (rendering, UI, input, audio, haptics, build tooling) is
+> verified by 112 automated tests. The Unity presentation layer (rendering, UI, input, audio, haptics, build tooling) is
 > implemented but **has never been compiled or run inside a Unity Editor**, because no Editor could be installed in the
 > development environment. Characters, environments and audio are **code-generated placeholders**, not final art.
 > No APK/AAB has been built. Details: `PROGRESS.md`, `KNOWN_ISSUES.md`, `TEST_RESULTS.md`.
@@ -95,13 +95,23 @@ Replace the placeholder application id before any store upload.
 ## Game modes and campaign
 
 - **30-level campaign** in 6 chapters, each with its own arena, ending in a best-of-5 final boss. Levels earn up to 3 stars
-  (win + objectives) and unlock fighters and weapons.
+  (win + objectives), unlock fighters and put weapons on sale.
+- **Difficulty tiers:** every level is **Easy, Medium, Hard or Extreme** (mixed inside each chapter). The tier sets the AI's
+  skill, scales the opponent's health and damage, and multiplies the Coins the level pays.
+- **Power:** one number for your loadout (100 = fresh, unarmed). Each level shows a **recommended power**; the campaign
+  card, briefing and defeat screen compare it with yours. Power comes from fighter level (+2% health and damage per level),
+  armour (5 tiers, up to 25% less damage taken) and your weapon (+25% when armed, +6% per weapon level).
+- **Coins & Shop:** Coins are earned from wins (first clear, replays at half reward), objectives, awards, Versus wins (more
+  per round against harder AI) and a small purse when you lose after winning a round. Spend them in the **Shop** on armour,
+  weapons (each goes on sale after its story level) and weapon/fighter upgrades. **Coin packs** can be bought for real money
+  once Play Billing is configured; until then the Coins tab says so (development builds use clearly-labelled test purchases).
+  A simulated free player can reach every level's recommended power without paying (see `TEST_RESULTS.md` §2b).
 - **Level formats:** Standard duels, **Weapons** levels (armed opponent or armed duel), and **Gauntlets** (3–5 opponents in a
   row; health carries over with 25–30 % recovery between bouts). Some levels add rules: Last Breath (every round starts at
   40 % health), Exhaustion (half-speed stamina for both), Iron Body (your strikes deal 80 %), Forge Trial (opponent +15 %).
 - **Weapons:** knife (fast, short, extra counter-hit damage), sword (balanced, strong slashes), staff (longest reach, slow).
   Weapons replace the punch buttons and the special; kicks and throws stay. Simultaneous strikes **clash**; a guard break or
-  throw **disarms** the opponent for 5 s. Equip unlocked weapons in the Armory; Versus lets both sides pick a weapon.
+  throw **disarms** the opponent for 5 s. Buy, upgrade and equip weapons in the Armory or Shop; Versus lets both sides pick a weapon.
 
 ## Characters
 

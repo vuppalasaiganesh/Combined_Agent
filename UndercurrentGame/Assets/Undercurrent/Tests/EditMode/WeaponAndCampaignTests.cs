@@ -246,13 +246,15 @@ namespace Undercurrent.Tests
         [Test]
         public void Difficulty_RisesAcrossChapters()
         {
-            float Strength(LevelDefinition l) => (int)l.Difficulty + (l.OpponentDamage - 1f) * 10f + (l.IsGauntlet ? 1f : 0f);
-            float previous = -1f;
+            double previousPower = 0, previousSkill = -1;
             foreach (var ch in CampaignDatabase.Chapters)
             {
-                var avg = (float)CampaignDatabase.LevelsInChapter(ch.Number).Average(Strength);
-                Assert.GreaterOrEqual(avg, previous, "chapter " + ch.Number);
-                previous = avg;
+                var levels = CampaignDatabase.LevelsInChapter(ch.Number).ToList();
+                double power = levels.Average(l => l.RecommendedPower), skill = levels.Average(l => (int)l.Difficulty);
+                Assert.Greater(power, previousPower, "recommended power, chapter " + ch.Number);
+                Assert.GreaterOrEqual(skill, previousSkill, "AI skill, chapter " + ch.Number);
+                previousPower = power;
+                previousSkill = skill;
             }
         }
 
@@ -269,8 +271,7 @@ namespace Undercurrent.Tests
                     var bout = run.Current;
                     var player = FighterRoster.Get(FighterRoster.Mara);
                     if (level.PlayerWeaponsAllowed) player = WeaponLoadout.Apply(player, WeaponCatalog.Get(WeaponCatalog.Sword));
-                    var opp = FighterRoster.Get(bout.OpponentId);
-                    if (bout.WeaponId != null) opp = WeaponLoadout.Apply(opp, WeaponCatalog.Get(bout.WeaponId));
+                    var opp = level.BuildOpponent(bout);
                     var cfg = run.CurrentConfig();
                     var sim = new FightSimulation(player, opp, cfg);
                     // A strong reference player so gauntlets usually progress past the first bout.
@@ -309,13 +310,17 @@ namespace Undercurrent.Tests
         }
 
         [Test]
-        public void WeaponUnlock_Equip_AndLoadoutRespectsRules()
+        public void WeaponPurchase_Equip_AndLoadoutRespectsRules()
         {
             var s = ProgressionService.CreateNew();
             Assert.IsFalse(ProgressionService.TryEquipWeapon(s, FighterRoster.Mara, WeaponCatalog.Knife), "locked weapon");
             var knifeLevel = CampaignDatabase.Levels.First(l => l.UnlocksWeaponId == WeaponCatalog.Knife);
             var r = ProgressionService.ApplyMatchResult(s, knifeLevel, new MatchSummary { Result = MatchResultKind.Victory });
-            Assert.Contains(WeaponCatalog.Knife, r.UnlockedWeapons);
+            Assert.Contains(WeaponCatalog.Knife, r.WeaponsInShop);
+            Assert.IsFalse(ProgressionService.OwnsWeapon(s, WeaponCatalog.Knife), "clearing the level only puts it in the shop");
+            s.Currency = Shop.WeaponPrice(WeaponCatalog.Knife);
+            Assert.AreEqual(PurchaseResult.Success, ProgressionService.TryBuyWeapon(s, WeaponCatalog.Knife));
+            Assert.AreEqual(0, s.Currency);
             Assert.IsTrue(ProgressionService.TryEquipWeapon(s, FighterRoster.Mara, WeaponCatalog.Knife));
             Assert.AreEqual(WeaponCatalog.Knife, ProgressionService.BuildLoadout(s, FighterRoster.Mara, true).Weapon.Id);
             Assert.IsNull(ProgressionService.BuildLoadout(s, FighterRoster.Mara, false).Weapon, "standard levels are unarmed");
@@ -362,7 +367,7 @@ namespace Undercurrent.Tests
             var repo = new SaveRepository(store, codec);
             var s = repo.Load();
             Assert.AreEqual(SaveLoadStatus.Migrated, repo.Status);
-            Assert.AreEqual(2, s.Version);
+            Assert.AreEqual(SaveMigrator.CurrentVersion, s.Version);
             Assert.AreEqual(2, s.GetLevel("c1_l1").Stars);
             Assert.IsNotNull(s.UnlockedWeapons);
             Assert.AreEqual("", s.GetFighter(FighterRoster.Mara).EquippedWeapon);

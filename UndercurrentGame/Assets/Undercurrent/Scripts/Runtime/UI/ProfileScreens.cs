@@ -142,7 +142,7 @@ namespace Undercurrent.Runtime.UI
                     UIFactory.Size(row, 70);
                     var swatch = UIFactory.Panel(row.transform, "Swatch", VisualAssets.Hex(c.PrimaryColor));
                     UIFactory.Size(swatch, 56, 56);
-                    UIFactory.Size(UIFactory.Label(row.transform, c.DisplayName + (owned ? "" : c.RewardOnly ? "  (campaign reward)" : $"  ({c.Price} Marks in Store)"), 26, owned ? Theme.Text : Theme.TextDim), -1, -1, 1);
+                    UIFactory.Size(UIFactory.Label(row.transform, c.DisplayName + (owned ? "" : c.RewardOnly ? "  (campaign reward)" : $"  ({GearUI.Coins(c.Price)} in Shop)"), 26, owned ? Theme.Text : Theme.TextDim), -1, -1, 1);
                     var id = c.Id;
                     var b = UIFactory.Button(row.transform, equipped ? "EQUIPPED" : owned ? "EQUIP" : "LOCKED", () =>
                     {
@@ -177,11 +177,11 @@ namespace Undercurrent.Runtime.UI
             bool maxed = fp.Level >= Catalog.MaxFighterLevel;
             var info = UIFactory.Label(left.transform,
                 $"<b><size=44>LEVEL {fp.Level} / {Catalog.MaxFighterLevel}</size></b>\n\nHealth  {current.MaxHealth}\nStamina  {current.MaxStamina:0}\nStamina regen  {current.StaminaRegen * 60f:0.0}/s\n" +
-                $"Guard drain  x{current.GuardDamageTakenMultiplier:0.00}\n\nEach level adds +2% health and +1.5% stamina.\nUpgrades are earned with Marks from fights — never sold for real money.",
+                $"Damage  x{current.DamageDealtMultiplier:0.00}\nGuard drain  x{current.GuardDamageTakenMultiplier:0.00}\n\nEach level adds +2% health, +2% damage and +1.5% stamina.\nPower (unarmed): {ProgressionService.PlayerPower(data, _fighterId, false)}",
                 26, Theme.Text, TextAnchor.UpperLeft);
             info.supportRichText = true;
             UIFactory.Anchor(info.rectTransform, 0.06f, 0.25f, 0.94f, 0.95f);
-            var btn = UIFactory.Button(left.transform, maxed ? "MAX LEVEL" : $"UPGRADE ({Catalog.UpgradeCost(fp.Level)} MARKS)", () =>
+            var btn = UIFactory.Button(left.transform, maxed ? "MAX LEVEL" : $"UPGRADE ({GearUI.Coins(Catalog.UpgradeCost(fp.Level))})", () =>
             {
                 if (ProgressionService.TryUpgradeFighter(data, _fighterId))
                 {
@@ -210,7 +210,74 @@ namespace Undercurrent.Runtime.UI
         }
     }
 
-    /// <summary>Choose which weapon a fighter brings to weapon-mode fights.</summary>
+    /// <summary>Shared weapon/armour shop actions so the Armory and the Shop behave identically.</summary>
+    public static class GearUI
+    {
+        public static string Coins(int amount) => $"{amount} {Shop.CurrencyName.ToUpperInvariant()}";
+
+        public static string Stats(WeaponDefinition w)
+        {
+            var lp = w.Moves.Find(m => m.Button == AttackButton.LightPunch && m.Direction == MoveDirection.Neutral);
+            string stats = $"{w.Description}\nReach {lp.HitFrontOffset + lp.HitLength:0.00} m  ·  quick strike {lp.Startup}f";
+            if (w.ParryWindowBonus > 0) stats += $"  ·  parry +{w.ParryWindowBonus}f";
+            if (w.CounterHitBonus > 0) stats += $"  ·  counter-hit +{w.CounterHitBonus * 100:0}%";
+            return stats;
+        }
+
+        /// <summary>Status line for a weapon: owned level, price, or where it unlocks.</summary>
+        public static string Status(SaveData data, string id)
+        {
+            if (ProgressionService.OwnsWeapon(data, id))
+            {
+                int lvl = ProgressionService.WeaponLevel(data, id);
+                return $"<color=#5AC76B>OWNED · LEVEL {lvl}/{Shop.MaxWeaponLevel}</color>  (+{(PowerRating.WeaponLevelScale(lvl) - 1f) * 100f:0}% strike damage)";
+            }
+            if (ProgressionService.IsWeaponInShop(data, id)) return $"<color=#E8A33D>For sale: {Coins(Shop.WeaponPrice(id))}</color>";
+            var l = ProgressionService.WeaponShopLevel(id);
+            return $"<color=#9EA8B5>Sold after you win chapter {l.Chapter}-{l.Number}: {l.Title}</color>";
+        }
+
+        /// <summary>Adds the BUY / UPGRADE button for a weapon (nothing when maxed or not yet sold).</summary>
+        public static Button WeaponButton(Transform parent, Navigator nav, string id)
+        {
+            var services = nav.App.Services;
+            var data = services.Data;
+            bool owned = ProgressionService.OwnsWeapon(data, id);
+            int cost = owned ? ProgressionService.WeaponUpgradeCost(data, id) : Shop.WeaponPrice(id);
+            string label = owned ? (cost > 0 ? $"UPGRADE\n<size=20>{Coins(cost)}</size>" : "MAX LEVEL")
+                : ProgressionService.IsWeaponInShop(data, id) ? $"BUY\n<size=20>{Coins(cost)}</size>" : "LOCKED";
+            var b = UIFactory.Button(parent, label, () =>
+            {
+                var name = WeaponCatalog.Get(id).DisplayName;
+                var result = owned ? ProgressionService.TryUpgradeWeapon(data, id) : ProgressionService.TryBuyWeapon(data, id);
+                Report(nav, result, owned ? $"{name} upgraded to level {ProgressionService.WeaponLevel(data, id)}." : $"{name} bought. Equip it in Fighters > Armory.");
+            }, ButtonStyle.Primary, 24);
+            b.GetComponentInChildren<Text>().supportRichText = true;
+            b.interactable = cost > 0 && data.Currency >= cost && (owned || ProgressionService.IsWeaponInShop(data, id));
+            return b;
+        }
+
+        public static void Report(Navigator nav, PurchaseResult result, string success)
+        {
+            var services = nav.App.Services;
+            switch (result)
+            {
+                case PurchaseResult.Success:
+                    services.Persist();
+                    services.Audio.PlayUI("ui_confirm");
+                    nav.Toast(success);
+                    break;
+                case PurchaseResult.InsufficientFunds:
+                    nav.Toast($"Not enough {Shop.CurrencyName} — win or replay fights, play Versus, or get a coin pack.");
+                    break;
+                case PurchaseResult.Locked: nav.Toast("Not for sale yet — keep going in the campaign."); break;
+                case PurchaseResult.Maxed: nav.Toast("Already at the highest level."); break;
+            }
+            nav.Refresh();
+        }
+    }
+
+    /// <summary>Buy, upgrade and choose the weapon a fighter brings to weapon-mode fights.</summary>
     public sealed class ArmoryScreen : ScreenBase
     {
         private readonly string _fighterId;
@@ -225,36 +292,32 @@ namespace Undercurrent.Runtime.UI
             var fp = data.GetOrCreateFighter(_fighterId);
             var list = UIFactory.ScrollList(content, "Weapons", 14, 6);
             UIFactory.Stretch((RectTransform)list.parent);
-            UIFactory.Size(UIFactory.Label(list, "Weapons are used in Weapons and Gauntlet levels and in Versus. Kicks and throws always use your fighter's own style. " +
-                "A guard break or a throw knocks the weapon away for 5 seconds.", 24, Theme.TextDim, TextAnchor.MiddleLeft), 80);
+            UIFactory.Size(UIFactory.Label(list, $"Weapons are bought and upgraded with {Shop.CurrencyName} and work in Weapons and Gauntlet levels and in Versus. " +
+                $"Power with this fighter: unarmed {ProgressionService.PlayerPower(data, _fighterId, false)}, armed {ProgressionService.PlayerPower(data, _fighterId, true)}.",
+                24, Theme.TextDim, TextAnchor.MiddleLeft), 80);
 
-            AddRow(list, nav, fp, "", "Unarmed", "Your fighter's own punches and special. Fastest recovery; no weapon to lose.", true, null);
+            AddRow(list, nav, fp, "", "Unarmed", "Your fighter's own punches and special. Fastest recovery; no weapon to lose.", true);
             foreach (var id in WeaponCatalog.All)
             {
                 var w = WeaponCatalog.Get(id);
-                bool unlocked = ProgressionService.IsWeaponUnlocked(data, id);
-                string hint = null;
-                if (!unlocked)
-                    foreach (var l in CampaignDatabase.Levels)
-                        if (l.UnlocksWeaponId == id) { hint = $"Win chapter {l.Chapter}-{l.Number}: {l.Title}"; break; }
-                var lp = w.Moves.Find(m => m.Button == AttackButton.LightPunch && m.Direction == MoveDirection.Neutral);
-                string stats = $"{w.Description}\nReach {lp.HitFrontOffset + lp.HitLength:0.00} m  ·  quick strike {lp.Startup}f";
-                if (w.ParryWindowBonus > 0) stats += $"  ·  parry +{w.ParryWindowBonus}f";
-                if (w.CounterHitBonus > 0) stats += $"  ·  counter-hit +{w.CounterHitBonus * 100:0}%";
-                AddRow(list, nav, fp, id, w.DisplayName, stats, unlocked, hint);
+                AddRow(list, nav, fp, id, w.DisplayName, GearUI.Stats(w) + "\n" + GearUI.Status(data, id), ProgressionService.OwnsWeapon(data, id));
             }
         }
 
-        private void AddRow(RectTransform list, Navigator nav, FighterProgress fp, string id, string name, string text, bool unlocked, string hint)
+        private void AddRow(RectTransform list, Navigator nav, FighterProgress fp, string id, string name, string text, bool owned)
         {
             bool equipped = (fp.EquippedWeapon ?? "") == id;
-            var row = UIFactory.Panel(list, "Weapon_" + name, unlocked ? Theme.Panel : Theme.Disabled);
-            UIFactory.Size(row, 150);
-            var t = UIFactory.Label(row.transform, $"<b>{name.ToUpperInvariant()}</b>{(equipped ? "   <color=#5AC76B>EQUIPPED</color>" : "")}\n{text}" +
-                (hint != null ? $"\n<color=#9EA8B5>Unlock: {hint}</color>" : ""), 24, Theme.Text, TextAnchor.MiddleLeft);
+            var row = UIFactory.Panel(list, "Weapon_" + name, owned ? Theme.Panel : Theme.Disabled);
+            UIFactory.Size(row, 170);
+            var t = UIFactory.Label(row.transform, $"<b>{name.ToUpperInvariant()}</b>{(equipped ? "   <color=#5AC76B>EQUIPPED</color>" : "")}\n{text}", 22, Theme.Text, TextAnchor.MiddleLeft);
             t.supportRichText = true;
-            UIFactory.Stretch(t.rectTransform, 24, 280, 10, 10);
-            var b = UIFactory.Button(row.transform, equipped ? "EQUIPPED" : unlocked ? "EQUIP" : "LOCKED", () =>
+            UIFactory.Stretch(t.rectTransform, 24, 500, 10, 10);
+            if (id.Length > 0)
+            {
+                var shop = GearUI.WeaponButton(row.transform, nav, id);
+                UIFactory.Fixed((RectTransform)shop.transform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-260, 0), new Vector2(220, 100));
+            }
+            var b = UIFactory.Button(row.transform, equipped ? "EQUIPPED" : owned ? "EQUIP" : "NOT OWNED", () =>
             {
                 if (ProgressionService.TryEquipWeapon(nav.App.Services.Data, _fighterId, id))
                 {
@@ -263,8 +326,8 @@ namespace Undercurrent.Runtime.UI
                 }
                 nav.Refresh();
             }, equipped ? ButtonStyle.Primary : ButtonStyle.Secondary, 24);
-            b.interactable = unlocked && !equipped;
-            UIFactory.Fixed((RectTransform)b.transform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-20, 0), new Vector2(230, 90));
+            b.interactable = owned && !equipped;
+            UIFactory.Fixed((RectTransform)b.transform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-20, 0), new Vector2(220, 100));
         }
     }
 
@@ -283,68 +346,138 @@ namespace Undercurrent.Runtime.UI
                 bool done = data.UnlockedAchievements.Contains(a.Id);
                 var row = UIFactory.Panel(list, a.Id, done ? Theme.PanelLight : Theme.Panel);
                 UIFactory.Size(row, 100);
-                var t = UIFactory.Label(row.transform, $"<b>{a.DisplayName}</b>  {(done ? "<color=#5AC76B>UNLOCKED</color>" : "")}\n{a.Description}   (+{a.RewardCurrency} Marks)", 26, done ? Theme.Text : Theme.TextDim, TextAnchor.MiddleLeft);
+                var t = UIFactory.Label(row.transform, $"<b>{a.DisplayName}</b>  {(done ? "<color=#5AC76B>UNLOCKED</color>" : "")}\n{a.Description}   (+{a.RewardCurrency} {Shop.CurrencyName})", 26, done ? Theme.Text : Theme.TextDim, TextAnchor.MiddleLeft);
                 t.supportRichText = true;
                 UIFactory.Stretch(t.rectTransform, 24, 24, 8, 8);
             }
         }
     }
 
-    public sealed class StoreScreen : ScreenBase
+    public sealed class ShopScreen : ScreenBase
     {
-        private static bool _inventory;
+        private enum Tab { Gear, Style, Coins }
+        private static Tab _tab = Tab.Gear;
 
         public override void Build(RectTransform root, Navigator nav)
         {
-            var content = ScreenFrame.Build(root, nav, _inventory ? "INVENTORY" : "STORE");
+            var content = ScreenFrame.Build(root, nav, "SHOP");
+            var tabs = UIFactory.HStack(content, "Tabs", 14);
+            UIFactory.Anchor((RectTransform)tabs.transform, 0f, 0.9f, 0.6f, 1f);
+            foreach (Tab tab in System.Enum.GetValues(typeof(Tab)))
+            {
+                var tb = tab;
+                UIFactory.Size(UIFactory.Button(tabs.transform, tab.ToString().ToUpperInvariant(), () => { _tab = tb; nav.Refresh(); },
+                    _tab == tab ? ButtonStyle.Primary : ButtonStyle.Secondary, 26), -1, -1, 1);
+            }
+            var list = UIFactory.ScrollList(content, "Items", 10, 6);
+            UIFactory.Anchor((RectTransform)list.parent, 0f, 0f, 1f, 0.88f);
+            if (_tab == Tab.Gear) BuildGear(list, nav);
+            else if (_tab == Tab.Style) BuildStyle(list, nav);
+            else BuildCoins(list, nav);
+        }
+
+        private static void Header(RectTransform list, string text) =>
+            UIFactory.Size(UIFactory.Label(list, text, 28, Theme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold), 56);
+
+        private static RectTransform Row(RectTransform list, string name, string text, bool active)
+        {
+            var row = UIFactory.Panel(list, name, active ? Theme.Panel : Theme.Disabled);
+            UIFactory.Size(row, 130);
+            var t = UIFactory.Label(row.transform, text, 24, Theme.Text, TextAnchor.MiddleLeft);
+            t.supportRichText = true;
+            UIFactory.Stretch(t.rectTransform, 24, 280, 8, 8);
+            return row.rectTransform;
+        }
+
+        private static void Place(Button b) =>
+            UIFactory.Fixed((RectTransform)b.transform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-20, 0), new Vector2(240, 100));
+
+        private static void BuildGear(RectTransform list, Navigator nav)
+        {
+            var data = nav.App.Services.Data;
+            var me = data.SelectedFighterId;
+            UIFactory.Size(UIFactory.Label(list, $"Your power ({FighterRoster.Get(me).DisplayName}): unarmed {ProgressionService.PlayerPower(data, me, false)}, " +
+                $"armed {ProgressionService.PlayerPower(data, me, true)}.  Each level shows a recommended power — gear closes the gap on Hard and Extreme fights.",
+                24, Theme.TextDim, TextAnchor.MiddleLeft), 70);
+
+            Header(list, "ARMOUR  (worn by every fighter)");
+            var current = Shop.GetArmor(data.ArmorTier);
+            string now = current == null ? "No armour" : $"{current.DisplayName}: {(1f - current.DamageTaken) * 100f:0}% less damage taken";
+            var next = Shop.GetArmor(data.ArmorTier + 1);
+            var armourRow = Row(list, "Armour", $"<b>TIER {data.ArmorTier}/{Shop.MaxArmorTier}</b>  {now}" +
+                (next != null ? $"\nNext: <b>{next.DisplayName}</b> — {(1f - next.DamageTaken) * 100f:0}% less damage. {next.Description}" : "\nFully armoured."), true);
+            var ab = UIFactory.Button(armourRow, next != null ? $"UPGRADE\n<size=20>{GearUI.Coins(next.Price)}</size>" : "MAX TIER",
+                () => GearUI.Report(nav, ProgressionService.TryUpgradeArmor(data), "Armour upgraded."), ButtonStyle.Primary, 24);
+            ab.GetComponentInChildren<Text>().supportRichText = true;
+            ab.interactable = next != null && data.Currency >= next.Price;
+            Place(ab);
+
+            Header(list, "WEAPONS  (Weapons and Gauntlet levels, Versus)");
+            foreach (var id in WeaponCatalog.All)
+            {
+                var w = WeaponCatalog.Get(id);
+                var row = Row(list, "Weapon_" + id, $"<b>{w.DisplayName.ToUpperInvariant()}</b>  {GearUI.Status(data, id)}\n{w.Description}", ProgressionService.IsWeaponInShop(data, id));
+                Place(GearUI.WeaponButton(row, nav, id));
+            }
+
+            Header(list, "FIGHTER LEVEL");
+            var fp = data.GetOrCreateFighter(me);
+            var lrow = Row(list, "FighterLevel", $"<b>{FighterRoster.Get(me).DisplayName.ToUpperInvariant()} LV {fp.Level}/{Catalog.MaxFighterLevel}</b>\nEach level: +2% health, +2% damage, more stamina; skills unlock at levels 3, 5, 7 and 9.", true);
+            bool maxed = fp.Level >= Catalog.MaxFighterLevel;
+            var lb = UIFactory.Button(lrow, maxed ? "MAX LEVEL" : $"UPGRADE\n<size=20>{GearUI.Coins(Catalog.UpgradeCost(fp.Level))}</size>", () =>
+                GearUI.Report(nav, ProgressionService.TryUpgradeFighter(data, me) ? PurchaseResult.Success : PurchaseResult.InsufficientFunds, "Fighter upgraded."), ButtonStyle.Primary, 24);
+            lb.GetComponentInChildren<Text>().supportRichText = true;
+            lb.interactable = ProgressionService.CanUpgradeFighter(data, me, out _);
+            Place(lb);
+        }
+
+        private static void BuildStyle(RectTransform list, Navigator nav)
+        {
             var services = nav.App.Services;
             var data = services.Data;
-
-            var tabs = UIFactory.HStack(content, "Tabs", 14);
-            UIFactory.Anchor((RectTransform)tabs.transform, 0f, 0.9f, 0.5f, 1f);
-            UIFactory.Size(UIFactory.Button(tabs.transform, "STORE", () => { _inventory = false; nav.Refresh(); }, _inventory ? ButtonStyle.Secondary : ButtonStyle.Primary, 26), -1, -1, 1);
-            UIFactory.Size(UIFactory.Button(tabs.transform, "INVENTORY", () => { _inventory = true; nav.Refresh(); }, _inventory ? ButtonStyle.Primary : ButtonStyle.Secondary, 26), -1, -1, 1);
-
-            var list = UIFactory.ScrollList(content, "Items", 10, 6);
-            UIFactory.Anchor((RectTransform)list.parent, 0f, 0.2f, 1f, 0.88f);
             foreach (var c in Catalog.Cosmetics)
             {
                 bool owned = data.OwnedCosmetics.Contains(c.Id);
-                if (_inventory != owned) continue;
-                if (!_inventory && c.RewardOnly) continue;
+                if (c.RewardOnly && !owned) continue;
                 var row = UIFactory.HStack(list, c.Id, 16);
                 UIFactory.Size(row, 76);
                 var sw = UIFactory.Panel(row.transform, "Swatch", VisualAssets.Hex(c.PrimaryColor));
                 UIFactory.Size(sw, 60, 60);
                 UIFactory.Size(UIFactory.Label(row.transform, $"{c.DisplayName}   <color=#9EA8B5>{c.Slot}</color>", 28), -1, -1, 1).GetComponent<Text>().supportRichText = true;
-                if (_inventory) continue;
                 var id = c.Id;
-                var b = UIFactory.Button(row.transform, $"{c.Price} MARKS", () =>
+                var b = UIFactory.Button(row.transform, owned ? "OWNED" : GearUI.Coins(c.Price), () =>
                 {
                     var result = ProgressionService.TryPurchaseCosmetic(data, id);
-                    if (result == PurchaseResult.Success)
-                    {
-                        services.Persist();
-                        services.Audio.PlayUI("ui_confirm");
-                        nav.Toast($"{c.DisplayName} added to your inventory. Equip it from Fighters > Style.");
-                    }
-                    else if (result == PurchaseResult.InsufficientFunds) nav.Toast("Not enough Marks yet — win fights and complete objectives to earn more.");
-                    nav.Refresh();
+                    GearUI.Report(nav, result, $"{c.DisplayName} added. Equip it from Fighters > Style.");
                 }, ButtonStyle.Primary, 24);
-                b.interactable = data.Currency >= c.Price;
+                b.interactable = !owned && data.Currency >= c.Price;
                 UIFactory.Size(b, 64, 240);
             }
+        }
 
-            var footer = UIFactory.Panel(content, "Premium", Theme.Panel);
-            UIFactory.Anchor(footer.rectTransform, 0f, 0f, 1f, 0.17f);
-            string status = services.Billing.Status == IntegrationStatus.Live ? "Premium cosmetics available." :
-                "Real-money purchases are not available in this build (store billing is not configured). Everything in the game can be earned by playing.";
-            var ft = UIFactory.Label(footer.transform, status, 24, Theme.TextDim, TextAnchor.MiddleLeft);
-            UIFactory.Anchor(ft.rectTransform, 0.03f, 0f, 0.72f, 1f);
-            var restore = UIFactory.Button(footer.transform, "RESTORE PURCHASES", () =>
-                services.Billing.RestorePurchases(items => nav.Toast(services.Billing.Status == IntegrationStatus.Live
+        private static void BuildCoins(RectTransform list, Navigator nav)
+        {
+            var services = nav.App.Services;
+            var billing = services.Billing;
+            string status = billing.Status == IntegrationStatus.Live ? "Coin packs are charged through the store." :
+                billing.Status == IntegrationStatus.DevelopmentMock ? "DEVELOPMENT BUILD: purchases here are test purchases and charge nothing." :
+                "Coin packs are not available in this build (store billing is not configured).";
+            UIFactory.Size(UIFactory.Label(list, status + $" Every item can also be earned by playing: wins, replays (half reward), Versus wins (more against harder AI) and a small purse when you lose after winning a round.",
+                24, Theme.TextDim, TextAnchor.MiddleLeft), 90);
+            foreach (var pack in Shop.CoinPacks)
+            {
+                string price = null;
+                foreach (var p in billing.Products) if (p.ProductId == pack.ProductId) price = p.LocalizedPrice;
+                var row = Row(list, pack.ProductId, $"<b>{pack.DisplayName.ToUpperInvariant()}</b>\n+{GearUI.Coins(pack.Coins)}", price != null);
+                var id = pack.ProductId;
+                var b = UIFactory.Button(row, price ?? "UNAVAILABLE", () => nav.App.BuyCoinPack(id, msg => { nav.Toast(msg); nav.Refresh(); }), ButtonStyle.Primary, 24);
+                b.interactable = price != null;
+                Place(b);
+            }
+            var restore = UIFactory.Button(list, "RESTORE PURCHASES", () =>
+                billing.RestorePurchases(items => nav.Toast(billing.Status == IntegrationStatus.Live
                     ? $"Restored {items.Count} purchases." : "Purchase restoration is unavailable: billing is not configured in this build.")), ButtonStyle.Secondary, 22);
-            UIFactory.Anchor((RectTransform)restore.transform, 0.74f, 0.15f, 0.98f, 0.85f);
+            UIFactory.Size(restore, 80);
         }
     }
 
@@ -386,7 +519,7 @@ namespace Undercurrent.Runtime.UI
             UIFactory.Size(UIFactory.Label(list, $"Profile: offline guest ({services.Account.Status}).  Cloud save: {services.CloudSave.Status}.", 22, Theme.TextDim), 40);
             UIFactory.Size(UIFactory.Button(list, "REPLAY TRAINING", () => { Save(); nav.App.StartTraining(); }, ButtonStyle.Secondary), 84);
             UIFactory.Size(UIFactory.Button(list, "RESET ALL PROGRESS", () =>
-                nav.Confirm("Erase all progress, unlocks and Marks? Settings are kept. This cannot be undone.", "ERASE", () =>
+                nav.Confirm("Erase all progress, unlocks, gear and Coins? Settings are kept. This cannot be undone.", "ERASE", () =>
                 {
                     services.Save.ResetProgress();
                     nav.App.ShowMainMenu();

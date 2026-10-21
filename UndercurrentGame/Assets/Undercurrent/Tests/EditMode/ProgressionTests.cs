@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using NUnit.Framework;
+using Undercurrent.Core.AI;
 using Undercurrent.Core.Combat;
 using Undercurrent.Core.Content;
 using Undercurrent.Core.Progression;
@@ -79,15 +80,18 @@ namespace Undercurrent.Tests
         }
 
         [Test]
-        public void Defeat_GivesPartialXp_NoCurrency_NoCompletion()
+        public void Defeat_GivesPartialXp_SmallConsolation_NoCompletion()
         {
             var s = ProgressionService.CreateNew();
             var l1 = CampaignDatabase.GetLevel("c1_l1");
             var r = ProgressionService.ApplyMatchResult(s, l1, new MatchSummary { Result = MatchResultKind.Defeat, RoundsLost = 2 });
-            Assert.AreEqual(0, r.Currency);
+            Assert.AreEqual(0, r.Currency, "a loss without winning a round pays nothing");
+            var close = ProgressionService.ApplyMatchResult(s, l1, new MatchSummary { Result = MatchResultKind.Defeat, RoundsWon = 1, RoundsLost = 2 });
+            Assert.AreEqual((int)(l1.RewardCurrency * ProgressionService.DefeatCurrencyFactor), close.Currency);
+            Assert.Less(close.Currency, l1.RewardCurrency / 2, "losing must pay far less than winning");
             Assert.AreEqual((int)(l1.RewardXp * ProgressionService.DefeatXpFactor), r.Xp);
             Assert.IsFalse(s.IsLevelCompleted("c1_l1"));
-            Assert.AreEqual(1, s.GetLevel("c1_l1").Attempts);
+            Assert.AreEqual(2, s.GetLevel("c1_l1").Attempts);
         }
 
         [Test]
@@ -194,7 +198,7 @@ namespace Undercurrent.Tests
         {
             var s = ProgressionService.CreateNew();
             var win = ProgressionService.ApplyQuickFightResult(s, new MatchSummary { Result = MatchResultKind.Victory, Parries = 3, MaxCombo = 5 });
-            Assert.GreaterOrEqual(win.Currency, ProgressionService.QuickFightWinCurrency);
+            Assert.GreaterOrEqual(win.Currency, Shop.QuickFightCoins(AIDifficulty.Normal));
             Assert.Contains("first_win", win.UnlockedAchievements);
             Assert.Contains("combo_5", win.UnlockedAchievements);
             Assert.AreEqual(3, s.TotalParries);

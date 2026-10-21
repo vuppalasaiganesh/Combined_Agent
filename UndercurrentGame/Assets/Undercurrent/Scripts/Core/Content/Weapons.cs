@@ -159,13 +159,20 @@ namespace Undercurrent.Core.Content
     /// <summary>Combines a fighter with a weapon: weapon moves replace punch-button moves and the special.</summary>
     public static class WeaponLoadout
     {
-        public static FighterDefinition Apply(FighterDefinition unarmed, WeaponDefinition weapon)
+        /// <param name="level">Upgrade level 1..5; each level above 1 adds 6% weapon-strike damage.</param>
+        public static FighterDefinition Apply(FighterDefinition unarmed, WeaponDefinition weapon, int level = 1)
         {
             if (unarmed == null) throw new ArgumentNullException(nameof(unarmed));
             if (weapon == null) return unarmed;
             var armed = unarmed.Clone();
             armed.Moves.RemoveAll(m => m.Button == AttackButton.LightPunch || m.Button == AttackButton.HeavyPunch || m.Button == AttackButton.Special);
-            foreach (var m in weapon.Moves) armed.Moves.Add(m.Clone());
+            float scale = PowerRating.WeaponLevelScale(level);
+            foreach (var m in weapon.Moves)
+            {
+                var c = m.Clone();
+                c.Damage = (int)Math.Round(c.Damage * scale);
+                armed.Moves.Add(c);
+            }
             // Kicks that chained into removed punches now chain into the weapon equivalents.
             var ids = new HashSet<string>();
             foreach (var m in armed.Moves) ids.Add(m.Id);

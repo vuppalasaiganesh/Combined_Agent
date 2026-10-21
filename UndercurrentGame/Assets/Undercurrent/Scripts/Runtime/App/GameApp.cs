@@ -183,7 +183,7 @@ namespace Undercurrent.Runtime.App
             var setup = new FightSetup
             {
                 Player = ProgressionService.BuildLoadout(Services.Data, playerId, level.PlayerWeaponsAllowed),
-                Opponent = Armed(FighterRoster.Get(bout.OpponentId), bout.WeaponId),
+                Opponent = level.BuildOpponent(bout),
                 PlayerLook = CharacterLook.For(playerId, Services.Data.GetFighter(playerId)),
                 OpponentLook = CharacterLook.For(bout.OpponentId),
                 Arena = arena,
@@ -225,8 +225,7 @@ namespace Undercurrent.Runtime.App
             }
             var setup = new FightSetup
             {
-                Player = Armed(ProgressionService.BuildLoadout(Services.Data, playerId),
-                    ProgressionService.IsWeaponUnlocked(Services.Data, playerWeapon) ? playerWeapon : null),
+                Player = ProgressionService.BuildLoadoutWith(Services.Data, playerId, playerWeapon),
                 Opponent = Armed(FighterRoster.Get(opponentId), opponentWeapon),
                 PlayerLook = CharacterLook.For(playerId, Services.Data.GetFighter(playerId)),
                 OpponentLook = opponentLook,
@@ -237,7 +236,7 @@ namespace Undercurrent.Runtime.App
             };
             StartFight(setup, outcome =>
             {
-                var reward = ProgressionService.ApplyQuickFightResult(Services.Data, outcome.Summary);
+                var reward = ProgressionService.ApplyQuickFightResult(Services.Data, outcome.Summary, difficulty);
                 Services.Persist();
                 Navigator.Reset(new ResultsScreen(outcome, reward));
             });
@@ -295,6 +294,23 @@ namespace Undercurrent.Runtime.App
             // A restart from the pause menu replaces the controller; make sure no stray one survives.
             foreach (var fc in FindObjectsByType<FightController>(FindObjectsSortMode.None)) Destroy(fc.gameObject);
             _fight = null;
+        }
+
+        /// <summary>Buys a coin pack through the billing service; Coins are credited only on a completed purchase.</summary>
+        public void BuyCoinPack(string productId, Action<string> report)
+        {
+            Services.Billing.Purchase(productId, outcome =>
+            {
+                if (outcome == BillingOutcome.Purchased)
+                {
+                    int coins = ProgressionService.GrantCoinPack(Services.Data, productId);
+                    Services.Persist();
+                    Services.Audio.PlayUI("ui_confirm");
+                    report($"+{coins} {Shop.CurrencyName}" + (Services.Billing.Status == IntegrationStatus.DevelopmentMock ? " (test purchase — nothing was charged)" : ""));
+                }
+                else if (outcome == BillingOutcome.Cancelled) report("Purchase cancelled.");
+                else report("Purchases are unavailable: store billing is not configured in this build.");
+            });
         }
 
         private RewardResult ApplyCampaignResult(FightOutcome outcome)

@@ -65,11 +65,15 @@ not inside Unity or on a device.
 | Weapons mode: knife / sword / staff movesets, reach-vs-speed tiers, clash, disarm on guard break/throw + 5 s rearm, knife counter-hit bonus, blade chip | VERIFIED (simulation tests + weapon matchup diagnostic) |
 | Weapon meshes held in the right hand, dropped weapon on the floor while disarmed, weapon strike poses | Mesh/pose generation VERIFIED offline (`Docs/preview/weapons.png`); in Unity IMPLEMENTED_UNVERIFIED |
 | Armory screen, weapon pickers in briefing/versus, armed touch labels, clash/disarm audio & callouts | IMPLEMENTED_UNVERIFIED (type-checked) |
+| Coin economy: weapons bought (after their story level) and upgraded to level 5, 5 armour tiers, fighter levels, tier-scaled rewards, Versus pay by AI difficulty, close-loss purse | Logic VERIFIED (incl. full-campaign free-player economy simulation) |
+| Power rating (player vs recommended), stat-scaled opponents | VERIFIED (formula tests + win-rate simulation) |
+| Shop screen (Gear / Style / Coins), power shown on campaign cards, briefing and defeat screen | IMPLEMENTED_UNVERIFIED (type-checked) |
+| Coin packs (real money) | Grant logic VERIFIED; dev-build test billing IMPLEMENTED_UNVERIFIED; real Play Billing BLOCKED (B6) |
 
 ### Phase D — Campaign
 | Feature | Status |
 |---|---|
-| 30 levels in 6 chapters (opponent, arena, difficulty, rounds, rewards, objectives, unlocks, story) | VERIFIED (data, unlock chain, every level incl. every gauntlet bout plays to completion AI-vs-AI) |
+| 30 levels in 6 chapters, mixed Easy / Medium / Hard / Extreme tiers (opponent, arena, AI skill, stat scaling, rounds, rewards, objectives, unlocks, story) | VERIFIED (data, unlock chain, every level incl. every gauntlet bout plays to completion AI-vs-AI) |
 | Level formats: Standard, Weapons (armed opponent / armed duel), Gauntlet (3–5 bouts, health carries over with 25–30 % recovery) | VERIFIED (logic); bout flow UI IMPLEMENTED_UNVERIFIED |
 | Rule modifiers (damage dealt/taken, start health, health not restored between rounds, stamina regen) | VERIFIED |
 | 3-star rating per level, chapter star totals, weapon unlocks as rewards, save v2 migration | Logic VERIFIED; screens IMPLEMENTED_UNVERIFIED |

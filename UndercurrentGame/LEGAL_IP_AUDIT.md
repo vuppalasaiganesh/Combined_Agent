@@ -59,3 +59,12 @@ generated at runtime by this project's code. No proprietary game files were extr
 4. Verify the Unity built-in font licence terms for commercial distribution (bundled with Unity; expected to be covered by the Unity licence — confirm).
 5. Before integrating any purchased models/animations/audio: verify commercial, mobile, modification and redistribution rights and record them in `ASSET_LICENSES.md`.
 6. Store policy review for in-app purchases and loot-box rules (none implemented; no randomized paid items planned).
+
+## 8. Monetisation notes (HUMAN REVIEW before enabling purchases)
+
+- Coin packs are direct purchases of a fixed number of Coins; there are **no randomised rewards (loot boxes)**.
+- Everything Coins buy can also be earned by playing; `EconomyTests` keeps that true when prices change.
+- Before release: store listing and age rating must disclose in-app purchases; follow Google Play payments policy (Play
+  Billing for digital goods), consumer-protection rules on virtual currency pricing, and refund handling. Development
+  builds use a mock billing service that labels purchases as tests and is excluded from release builds by `#if`.
+

@@ -15,7 +15,7 @@ namespace Undercurrent.Core.Progression
         public string Id;
         public string DisplayName;
         public CosmeticSlot Slot;
-        /// <summary>Price in Marks (earned in-game currency). 0 means reward-only.</summary>
+        /// <summary>Price in Coins. 0 means reward-only.</summary>
         public int Price;
         public bool RewardOnly;
         /// <summary>Colours as hex RRGGBB, interpreted by the presentation layer.</summary>
@@ -86,7 +86,9 @@ namespace Undercurrent.Core.Progression
             new AchievementDefinition { Id = "chapter1", DisplayName = "Past the Gatekeeper", Description = "Complete Chapter 1.", RewardCurrency = 200 },
             new AchievementDefinition { Id = "throws_10", DisplayName = "Freight Handler", Description = "Land 10 throws in total.", RewardCurrency = 100 },
             new AchievementDefinition { Id = "collector_5", DisplayName = "Collector", Description = "Own 5 cosmetic items.", RewardCurrency = 100 },
-            new AchievementDefinition { Id = "armory", DisplayName = "Full Armory", Description = "Unlock the knife, sword and staff.", RewardCurrency = 200 },
+            new AchievementDefinition { Id = "armory", DisplayName = "Full Armory", Description = "Own the knife, sword and staff.", RewardCurrency = 200 },
+            new AchievementDefinition { Id = "armor_max", DisplayName = "Forged", Description = "Buy the top tier of armour.", RewardCurrency = 300 },
+            new AchievementDefinition { Id = "extreme", DisplayName = "Into the Deep", Description = "Clear an Extreme level.", RewardCurrency = 300 },
             new AchievementDefinition { Id = "disarm_5", DisplayName = "Empty Hands", Description = "Disarm opponents 5 times.", RewardCurrency = 150 },
             new AchievementDefinition { Id = "gauntlet", DisplayName = "Still Standing", Description = "Clear a gauntlet level.", RewardCurrency = 150 },
             new AchievementDefinition { Id = "champion", DisplayName = "End of the Undercurrent", Description = "Complete the Final Championship.", RewardCurrency = 500 },
@@ -104,8 +106,8 @@ namespace Undercurrent.Core.Progression
             return null;
         }
 
-        /// <summary>Marks needed to raise a fighter from <paramref name="currentLevel"/> to the next level.</summary>
-        public static int UpgradeCost(int currentLevel) => 150 * currentLevel;
+        /// <summary>Coins needed to raise a fighter from <paramref name="currentLevel"/> to the next level.</summary>
+        public static int UpgradeCost(int currentLevel) => 250 * currentLevel;
 
         public static int XpToNextLevel(int playerLevel) => 100 + 60 * (playerLevel - 1);
     }

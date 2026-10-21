@@ -36,6 +36,13 @@
 - AI-vs-AI throws are frequent (≈2 per round) because heavy blocking makes throws the correct answer — re-tune after human playtests.
 - Campaign difficulty curve (30 levels) is tuned against AI-vs-AI runs only; real players may find gauntlets / Iron Body / Exhaustion levels too hard or too easy.
 - Weapons are balanced from AI-vs-AI data only (`TEST_RESULTS.md` §2). Unarmed loses ≈75–80 % to any weapon by design; levels that arm only the opponent compensate with rules.
+- Economy (prices, tier scaling, recommended power) is tuned with a simulated ideal player and AI-vs-AI fights only. Real
+  players will progress slower; expect to re-tune prices and the Extreme tier after playtests and analytics.
+- Power rating treats "armed" as a flat ×1.25 (from AI matchup data); it ignores fighter style and the opponent's weapon type.
+- Armour has no visual on the character yet (stat effect only).
+- Coin packs: no real store integration. Before release, Play Billing needs server-side receipt verification, consumable
+  acknowledgement, purchase callbacks marshalled to the main thread, refund handling, and store/age-rating disclosure of
+  in-app purchases (B6).
 - Weapon strike poses are procedural approximations (no real sword/staff technique animation); weapons have no physics or trails.
 - A disarmed fighter fights with fists for 5 s; the dropped weapon is visual only (cannot be picked up by either fighter).
 - Arenas are greybox; level 1 and Training share one arena.

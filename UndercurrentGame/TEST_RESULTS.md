@@ -2,18 +2,20 @@
 
 **Run date:** 2026-10-21 · **Environment:** Linux container, .NET SDK 8.0.132, NUnit 3.14 · **Unity Editor:** not available.
 
-## 1. Core gameplay + character tests — `dotnet test Tools/CoreTests` → **97 passed, 0 failed**
+## 1. Core gameplay + character tests — `dotnet test Tools/CoreTests` → **112 passed, 0 failed**
 
 These are the same source files Unity's Test Runner executes (`Assets/Undercurrent/Tests/EditMode`), compiled against the
-same Core and CharacterGen sources. They have **not** yet been run inside Unity. Latest run: 2026-10-21 (weapons + 30-level campaign update).
+same Core and CharacterGen sources. They have **not** yet been run inside Unity. Latest run: 2026-10-21 (shop, tiers and power update).
 
 ```
+Passed AISkill_FollowsTier_AndBossesUseBossAI
 Passed AI_DoesNotReadOpponentInput
 Passed AI_UsesDefense_AttacksAndCombos
 Passed AllDifficulties_AndFighters_CompleteMatches
 Passed AllPlayableFighters_AndWeapons_AreUnlockable
 Passed AntiAir_KnocksDownAirborneOpponent
 Passed ArmedAI_MatchesComplete_AndUseWeaponMechanics
+Passed Armour_ReducesDamageTaken_InTheSimulation
 Passed Attack_OutOfRange_Whiffs_WithNoDamage
 Passed Attacks_RequireStamina_PreventingSpam
 Passed Blades_ChipThroughBareHandedBlock_MoreThanFists
@@ -21,16 +23,18 @@ Passed Blocking_ReducesDamageToChip_AndDrainsStamina
 Passed BodiesAreLeftRightSymmetric
 Passed BossVictory_UnlocksHaruto_AndCompletesChapter
 Passed Boss_EntersSecondPhase_BelowHalfHealth
+Passed BuildOpponent_AppliesStatScale_AndWeapon
 Passed Campaign_Has30Levels_InSixPlayableChapters
 Passed Campaign_Levels_AreCompleteAndChained
 Passed CancelChain_ProducesComboWithDamageScaling
 Passed Cancel_IsRejectedWhenMoveWhiffs
 Passed ChipDamage_NeverKnocksOut
+Passed CoinPacks_CreditCoins_OnlyForKnownProducts
 Passed ComboCap_ForcesKnockdown
 Passed CorruptSave_IsBackedUp_AndReplaced
 Passed Cosmetics_PurchaseAndEquip
 Passed CounterHit_DealsBonusDamage
-Passed Defeat_GivesPartialXp_NoCurrency_NoCompletion
+Passed Defeat_GivesPartialXp_SmallConsolation_NoCompletion
 Passed Difficulty_RisesAcrossChapters
 Passed Dodge_InvulnerabilityEvadesAttack
 Passed EulerConvention_MatchesUnity
@@ -39,16 +43,20 @@ Passed EveryLevel_PlaysToACompleteMatch
 Passed EveryLevel_ReferencesValidContent
 Passed EveryMove_HasAPose
 Passed EveryTutorialStep_IsCompletableInTheLiveSimulation
+Passed FighterLevels_AddHealthAndDamage
 Passed FighterUpgrade_CostsCurrency_AndIsCapped
 Passed FrameAdvantage_MatchesSimulation
+Passed FreePlayer_CanReachRecommendedPower_ByPlaying
 Passed GauntletRun_CarriesHealth_AndRequiresEveryBout
 Passed GeneratedBodies_AreValidSkinnedMeshes
 Passed Grounding_LeavesKickingLegLifted
 Passed Grounding_PlantsFeetInEveryGroundedPose
 Passed GuardBreak_DisarmsWeaponUser_ThenWeaponReturns
 Passed GuardBreak_WhenBlockingWithoutStamina
+Passed HarderTiers_PayMore_AndScaleOpponentsMore
 Passed HighAttack_WhiffsOverCrouchingOpponent
 Passed HigherDifficulty_WinsMoreOften
+Passed HigherPower_WinsMoreOften_InTheSimulation
 Passed HitStop_FreezesBothFighters
 Passed InputsDuringHitStop_AreBufferedForCancels
 Passed Inputs_AreIgnoredDuringIntro
@@ -73,8 +81,10 @@ Passed Observation_IsDelayedByReactionTime
 Passed OnlineServices_ReportNotConfigured_AndNeverFakeSuccess
 Passed Parry_NegatesDamage_AndStunsAttacker
 Passed PlayableFighters_HaveDistinctIdentities
+Passed Prices_RiseWithWeaponReach
 Passed QuickFight_GivesSmallRewards_AndCountsStats
 Passed ReactionTimes_StayWithinHumanRange
+Passed RecommendedPower_UsesTheSameFormulaAsPlayerPower
 Passed Replay_GivesReducedCurrency_NoDuplicateUnlocks
 Passed ResetProgress_KeepsSettings
 Passed RestPoseSkinning_IsIdentity
@@ -95,20 +105,25 @@ Passed Throw_BeatsBlock_AndCausesKnockdown
 Passed Throw_CanBeBrokenDuringTechWindow
 Passed Throw_CannotGrabOpponentInHitStun
 Passed Throw_DisarmsWeaponUser
+Passed Tiers_AreMixed_InEveryChapter
 Passed Timeout_AwardsRoundToHealthier
 Passed UnversionedSave_IsMigrated_WithBackup
 Passed V1Save_MigratesToV2_WithStars
+Passed V2Save_KeepsWonWeapons_AsLevelOne
+Passed Versus_PaysMore_AgainstHarderAI
 Passed Victory_FirstClear_GrantsRewards_AndUnlocksNextLevel
 Passed Walking_MovesForwardAndBack
 Passed WeaponIsRestoredAtNextRound
+Passed WeaponPurchase_Equip_AndLoadoutRespectsRules
 Passed WeaponTiers_TradeReachForSpeed
-Passed WeaponUnlock_Equip_AndLoadoutRespectsRules
+Passed WeaponUpgrades_RaiseStrikeDamage_UpToMax
+Passed Weapons_AreSold_OnlyAfterTheirLevel_AndCostCoins
 Passed WhiffedParry_HasRecovery_ThatCanBeCounterHit
 Passed Xp_LevelsUpPlayer
-Total tests: 97 — Passed: 97
+Total tests: 112 — Passed: 112
 ```
 
-The explicit diagnostics `BalanceReport.PrintAIMatchReport` and `PrintWeaponMatchupReport` are excluded from the gate and run on demand.
+The explicit diagnostics `BalanceReport.PrintAIMatchReport`, `PrintWeaponMatchupReport` and `EconomyTests.PrintEconomyReport` are excluded from the gate and run on demand.
 
 ### What the tests cover (acceptance-criteria mapping)
 
@@ -129,6 +144,7 @@ The explicit diagnostics `BalanceReport.PrintAIMatchReport` and `PrintWeaponMatc
 | — | Procedural humans | `GeneratedBodies_AreValidSkinnedMeshes` (all 6 fighters: indices, weights, normals, height, feet on floor, triangle budget), `SurfaceNormals_PointOutwards`, `BodiesAreLeftRightSymmetric`, `RestPoseSkinning_IsIdentity`, `EulerConvention_MatchesUnity`, `Grounding_PlantsFeetInEveryGroundedPose`, `Grounding_LeavesKickingLegLifted`, `EveryMove_HasAPose` |
 | — | Weapons | `WeaponTiers_TradeReachForSpeed`, `Throw_DisarmsWeaponUser`, `WeaponIsRestoredAtNextRound`, clash/disarm/rearm, knife counter-hit bonus, loadout validity for every fighter × weapon (see `WeaponAndCampaignTests.cs`) |
 | — | 30-level campaign | `EveryLevel_PlaysThroughAllBouts_WithWeapons` (every level incl. gauntlets and modifiers played AI-vs-AI to completion), unlock chain, ids, rewards, stars, gauntlet health carry-over, save v1→v2 migration |
+| — | Economy, tiers, power | `FreePlayer_CanReachRecommendedPower_ByPlaying` (full-campaign economy simulation, below), `HigherPower_WinsMoreOften_InTheSimulation`, `Armour_ReducesDamageTaken_InTheSimulation`, `WeaponUpgrades_RaiseStrikeDamage_UpToMax`, `Weapons_AreSold_OnlyAfterTheirLevel_AndCostCoins`, `CoinPacks_CreditCoins_OnlyForKnownProducts`, `Tiers_AreMixed_InEveryChapter`, `AISkill_FollowsTier_AndBossesUseBossAI`, `V2Save_KeepsWonWeapons_AsLevelOne` |
 | — | Content integrity | `Roster_FrameData_IsValid`, `Campaign_Levels_AreCompleteAndChained`, `PlayableFighters_HaveDistinctIdentities`, `LightAttacks_ArePlusOnHit_HeavyKicksAreUnsafeOnBlock` |
 
 **Not covered by any executed test:** criteria 1–5, 17–20 (application launch, menus, fighter animation, settings UI,
@@ -160,6 +176,54 @@ staff           63%      38%      48%      48%
 Mirror cells are not exactly 50 % (side/seed asymmetry and drawn matches count as non-wins). Reading: any weapon beats
 unarmed (intended — armed levels compensate unarmed players with rules), and the three weapons form a loose cycle
 (knife > staff, staff > sword, sword ≈ knife) rather than one dominant pick. AI-only data; re-tune after human playtests.
+
+## 2b. Economy and power diagnostics (simulation only)
+
+`EconomyTests.PrintEconomyReport` — an idealised **free** player (no coin packs) who plays the campaign in order with one
+fighter, wins every level first try, completes one objective per level and spends greedily on the best power-per-coin
+upgrade. `rec` = level's recommended power, `arrive` = player's power on arrival, `power` = after any replays needed.
+
+```
+level   tier     rec  arrive  power  replays  coins-after
+c1_l1   Easy       85     100    100        0          350
+c1_l2   Medium    101     104    104        0          580
+c1_l3   Medium    103     108    108        0          950
+c2_l1   Easy       88     112    112        0          800
+c2_l2   Easy       97     112    112        0         1380
+c2_l3   Hard      120     140    140        0         1600
+c2_l4   Medium    144     148    148        0         1680
+c2_l5   Hard      155     157    157        0         1820
+c3_l1   Easy      118     163    163        0         1810
+c3_l2   Medium    113     127    127        0         1760
+c3_l3   Hard      129     132    132        0         1970
+c3_l4   Medium    145     181    181        0         1620
+c3_l5   Hard      165     181    181        0         3560
+c4_l1   Easy      126     192    192        0         2360
+c4_l2   Hard      169     198    198        0         2850
+c4_l3   Medium    162     209    209        0         2210
+c4_l4   Hard      139     150    150        0         4630
+c4_l5   Medium    125     217    217        0         4420
+c4_l6   Extreme   228     228    228        0         4700
+c5_l1   Medium    160     242    242        0         2930
+c5_l2   Hard      228     242    242        0         5810
+c5_l3   Extreme   258     254    270        9         4260
+c5_l4   Easy      141     270    270        0         6370
+c5_l5   Hard      218     270    270        0         9620
+c5_l6   Extreme   246     288    288        0         5180
+c6_l1   Medium    173     288    288        0         7840
+c6_l2   Hard      196     288    288        0        11450
+c6_l3   Extreme   284     288    288        0        17230
+c6_l4   Hard      201     288    288        0        21070
+c6_l5   Extreme   260     288    288        0        27080
+```
+Reading: Easy levels leave a wide margin; Medium/Hard are close; Extreme levels sit at or above even this ideal player's
+power (one needs 9 replays; c6_l3 needs 284 of the 288 maximum). Real players lose fights and miss objectives, so they will
+need more replays, Versus wins or coin packs — that is the intended role of coins. The gating test asserts: every level is
+reachable without paying, Easy/Medium never need grinding, no level needs more than 12 replays, ≤ 60 replays in total.
+
+`EconomyTests.HigherPower_WinsMoreOften_InTheSimulation` (same body and Hard AI on both sides; opponent at late-Extreme
+stats ×1.41): fresh player won **0/16**, fully-geared player (level 10 + top armour, unarmed) won **9/16**. Power is real in the
+simulation, not just a label.
 
 ## 3. Unity-layer type-check (non-authoritative) — `Tools/UnityCompileCheck` → **0 errors, 0 warnings** in 4 configurations
 
