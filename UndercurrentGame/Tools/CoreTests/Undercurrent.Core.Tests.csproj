@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Standalone runner for the engine-independent game core.
+    Compiles the exact same source files Unity compiles (Assets/Undercurrent/Scripts/Core) and the
+    same NUnit tests Unity's Test Runner executes (Assets/Undercurrent/Tests/EditMode), so core rules
+    can be verified without a Unity Editor. LangVersion 9 matches Unity 6's C# compiler level.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <IsPackable>false</IsPackable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Assets/Undercurrent/Scripts/Core/**/*.cs" />
+    <Compile Include="../../Assets/Undercurrent/Tests/EditMode/**/*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="NUnit" Version="3.14.0" />
+    <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
+  </ItemGroup>
+</Project>

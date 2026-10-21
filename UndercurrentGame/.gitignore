@@ -1,0 +1,30 @@
+# Unity generated
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+*.csproj
+*.sln
+*.suo
+*.user
+*.pidb
+*.booproj
+*.unityproj
+.vs/
+.vscode/
+*.apk
+*.aab
+*.keystore
+*.jks
+crashlytics-build.properties
+
+# Standalone .NET tooling outputs (the tooling project files themselves are tracked explicitly below)
+Tools/**/bin/
+Tools/**/obj/
+TestResults/
+!Tools/CoreTests/Undercurrent.Core.Tests.csproj
+!Tools/UnityCompileCheck/*.csproj
