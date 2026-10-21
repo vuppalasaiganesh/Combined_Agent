@@ -14,6 +14,8 @@ namespace Undercurrent.Core.Combat
         public string Bio;
         public string Strengths;
         public string Weaknesses;
+        /// <summary>Weapon this fighter favours in weapon levels and Versus (null = none).</summary>
+        public string SignatureWeapon;
 
         public int MaxHealth = 1000;
         public float MaxStamina = 100f;
@@ -56,6 +58,11 @@ namespace Undercurrent.Core.Combat
         public float PushHalfWidth = 0.32f;
 
         public List<MoveData> Moves = new List<MoveData>();
+
+        /// <summary>Weapon carried in this loadout (null = unarmed). See <see cref="WeaponLoadout"/>.</summary>
+        [NonSerialized] public WeaponDefinition Weapon;
+        /// <summary>The unarmed version of this fighter, used while disarmed.</summary>
+        [NonSerialized] public FighterDefinition Unarmed;
         /// <summary>Named combo routes (sequences of move ids) used by the tutorial, move list and AI.</summary>
         public List<ComboRoute> Combos = new List<ComboRoute>();
 

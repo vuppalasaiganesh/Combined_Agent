@@ -11,6 +11,12 @@ namespace Undercurrent.Tests
         public readonly FightSimulation Sim;
         public readonly List<CombatEvent> AllEvents = new List<CombatEvent>();
 
+        public TestHarness(FightSimulation sim)
+        {
+            Sim = sim;
+            AllEvents.AddRange(Sim.Events);
+        }
+
         public TestHarness(string p0 = FighterRoster.Mara, string p1 = FighterRoster.Dima, MatchConfig config = null)
         {
             config = config ?? new MatchConfig { IntroTicks = 2, RoundOverTicks = 10 };

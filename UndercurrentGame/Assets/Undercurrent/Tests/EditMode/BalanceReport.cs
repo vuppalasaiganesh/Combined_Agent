@@ -52,5 +52,40 @@ namespace Undercurrent.Tests
             }
             TestContext.WriteLine(sb.ToString());
         }
+
+        [Test, Explicit("Diagnostic report, run on demand")]
+        public void PrintWeaponMatchupReport()
+        {
+            // Mirror fighters (same body, same AI) so only the weapon differs; both sides swapped across seeds.
+            var options = new[] { "", WeaponCatalog.Knife, WeaponCatalog.Sword, WeaponCatalog.Staff };
+            var sb = new StringBuilder("row weapon win% vs column weapon (Hard AI, 40 matches each)\n          ");
+            foreach (var c in options) sb.Append($"{(c == "" ? "unarmed" : c),9}");
+            sb.AppendLine();
+            foreach (var r in options)
+            {
+                sb.Append($"{(r == "" ? "unarmed" : r),-10}");
+                foreach (var c in options)
+                {
+                    int wins = 0, games = 0;
+                    for (uint seed = 1; seed <= 20; seed++)
+                    for (int side = 0; side < 2; side++)
+                    {
+                        FighterDefinition Make(string w) { var d = FighterRoster.Get(FighterRoster.Mara); return w == "" ? d : WeaponLoadout.Apply(d, WeaponCatalog.Get(w)); }
+                        var a = side == 0 ? Make(r) : Make(c);
+                        var b = side == 0 ? Make(c) : Make(r);
+                        var sim = new FightSimulation(a, b, new MatchConfig());
+                        var ai0 = new FightAI(0, AIDifficulty.Hard, seed * 3 + (uint)side);
+                        var ai1 = new FightAI(1, AIDifficulty.Hard, seed * 7 + 100);
+                        for (int t = 0; t < 60 * 60 * 10 && !sim.IsMatchOver; t++) sim.Step(ai0.Think(sim), ai1.Think(sim));
+                        var rowSide = side == 0 ? RoundOutcome.Player0 : RoundOutcome.Player1;
+                        if (sim.MatchOutcome == rowSide) wins++;
+                        games++;
+                    }
+                    sb.Append($"{100f * wins / games,8:0}%");
+                }
+                sb.AppendLine();
+            }
+            TestContext.WriteLine(sb.ToString());
+        }
     }
 }

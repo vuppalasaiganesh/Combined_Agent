@@ -19,6 +19,26 @@ namespace Undercurrent.Core.Combat
         public int CounterHitBonusStun = 4;
         public float ThrowRange = 1.05f;
         public float ParryFocusGain = 12f;
+
+        // ---- Level rule modifiers (index = fighter 0 / 1) ----
+        /// <summary>Health each fighter starts round 1 with, as a fraction of max (gauntlet carry-over, "last breath" rules).</summary>
+        public float[] StartHealth = { 1f, 1f };
+        /// <summary>Multiplier on damage dealt by each fighter.</summary>
+        public float[] DamageDealt = { 1f, 1f };
+        /// <summary>Multiplier on stamina regeneration ("exhaustion" rules).</summary>
+        public float[] StaminaRegen = { 1f, 1f };
+        /// <summary>Apply <see cref="StartHealth"/> to every round instead of round 1 only.</summary>
+        public bool StartHealthEveryRound;
+        public int ClashStun = 16;
+
+        public MatchConfig Clone()
+        {
+            var c = (MatchConfig)MemberwiseClone();
+            c.StartHealth = (float[])StartHealth.Clone();
+            c.DamageDealt = (float[])DamageDealt.Clone();
+            c.StaminaRegen = (float[])StaminaRegen.Clone();
+            return c;
+        }
     }
 
     /// <summary>
@@ -81,8 +101,8 @@ namespace Undercurrent.Core.Combat
             RoundTicksRemaining = Config.RoundSeconds * SimClock.TicksPerSecond;
             LastRoundOutcome = RoundOutcome.None;
             float half = Config.StartSeparation * 0.5f;
-            Fighters[0].ResetForRound(-half, 1);
-            Fighters[1].ResetForRound(half, -1);
+            Fighters[0].ResetForRound(-half, 1, round == 1 || Config.StartHealthEveryRound ? Config.StartHealth[0] : 1f);
+            Fighters[1].ResetForRound(half, -1, round == 1 || Config.StartHealthEveryRound ? Config.StartHealth[1] : 1f);
             Emit(CombatEventType.RoundAnnounce, -1, -1, null, round, 0f, 0f);
         }
 
@@ -157,7 +177,7 @@ namespace Undercurrent.Core.Combat
             ResolveThrows();
             ResolveStrikes();
 
-            for (int i = 0; i < 2; i++) Fighters[i].RegenerateStamina();
+            for (int i = 0; i < 2; i++) Fighters[i].RegenerateStamina(Config.StaminaRegen[i]);
 
             CheckRoundEnd();
         }
@@ -314,6 +334,7 @@ namespace Undercurrent.Core.Combat
                     thrower.Stats.HitsLanded++;
                     victim.SetState(FighterStateId.KnockedDown);
                     victim.Stats.Knockdowns++;
+                    victim.Disarm(this, Content.WeaponCatalog.DisarmTicks);
                     victim.SlideVelocity = thrower.Facing * m.KnockbackOnHit * 0.2f;
                     thrower.AddFocus(this, thrower.Def.FocusGainOnHit);
                     victim.AddFocus(this, victim.Def.FocusGainOnDamaged);
@@ -368,6 +389,9 @@ namespace Undercurrent.Core.Combat
             // Evaluate both before applying either so trades are symmetric.
             bool strike0 = _pendingStrike[0];
             bool strike1 = _pendingStrike[1];
+
+            // Weapon clash: the blades meet in the air, or two weapon strikes would trade hits on the same frame.
+            if (TryClash(strike0 && strike1)) return;
             var snapshot0 = strike0 ? Fighters[0].CurrentMove : null;
             var snapshot1 = strike1 ? Fighters[1].CurrentMove : null;
             var state0 = Fighters[0].State;
@@ -425,6 +449,7 @@ namespace Undercurrent.Core.Combat
                     d.StartDefenderStun(FighterStateId.GuardBroken, d.Def.GuardBreakFrames);
                     HitStopRemaining = Math.Max(HitStopRemaining, 14);
                     Emit(CombatEventType.GuardBreak, a.Index, d.Index, m.Id, chip, cx, cy, true);
+                    d.Disarm(this, Content.WeaponCatalog.DisarmTicks);
                 }
                 else
                 {
@@ -444,7 +469,7 @@ namespace Undercurrent.Core.Combat
             bool armorAbsorb = d.State == FighterStateId.Attack && d.CurrentMove.Armored &&
                                d.CurrentPhase != MovePhase.Recovery && !m.CausesKnockdown && m.Damage < 80;
 
-            float mult = counter ? Config.CounterHitMultiplier : 1f;
+            float mult = counter ? Config.CounterHitMultiplier + (m.IsWeaponStrike && a.IsArmed ? a.Weapon.CounterHitBonus : 0f) : 1f;
             int dmg = ScaleDamage(a, d, m.Damage, mult);
             ApplyDamage(a, d, dmg);
             a.MoveHit = true;
@@ -486,6 +511,38 @@ namespace Undercurrent.Core.Combat
             }
         }
 
+        /// <summary>A weapon swing that is about to land or already live (last 2 wind-up frames or active).</summary>
+        private static bool SwingCommitted(FighterRuntime f) =>
+            f.State == FighterStateId.Attack && f.IsArmed && f.CurrentMove.IsWeaponStrike && !f.CurrentMove.IsSpecial &&
+            !f.MoveConnected && f.MoveFrame >= f.CurrentMove.Startup - 1 && f.CurrentPhase != MovePhase.Recovery;
+
+        /// <summary>
+        /// Weapon clash: both fighters are swinging weapons and either the blades meet in the air, or one blade lands while
+        /// the other swing is already committed. Both recoil; nobody takes damage.
+        /// </summary>
+        private bool TryClash(bool mutualStrike)
+        {
+            var a = Fighters[0];
+            var b = Fighters[1];
+            if (!SwingCommitted(a) || !SwingCommitted(b)) return false;
+            bool aLive = a.CurrentPhase == MovePhase.Active, bLive = b.CurrentPhase == MovePhase.Active;
+            bool bladesMeet = aLive && bLive && a.GetActiveHitbox().Overlaps(b.GetActiveHitbox());
+            bool landsIntoSwing = (_pendingStrike[0] && aLive) || (_pendingStrike[1] && bLive);
+            if (!mutualStrike && !bladesMeet && !landsIntoSwing) return false;
+
+            a.MoveConnected = b.MoveConnected = true;
+            string moveId = a.CurrentMove.Id;
+            a.StartDefenderStun(FighterStateId.Parried, Config.ClashStun);
+            b.StartDefenderStun(FighterStateId.Parried, Config.ClashStun);
+            a.SlideVelocity = -a.Facing * 0.08f;
+            b.SlideVelocity = -b.Facing * 0.08f;
+            HitStopRemaining = Math.Max(HitStopRemaining, 10);
+            a.Stats.Clashes++;
+            b.Stats.Clashes++;
+            Emit(CombatEventType.Clash, 0, 1, moveId, 0, (a.X + b.X) * 0.5f, 1.2f, true);
+            return true;
+        }
+
         private static bool CanBlock(AttackHeight height, bool crouching)
         {
             switch (height)
@@ -501,7 +558,7 @@ namespace Undercurrent.Core.Combat
         private int ScaleDamage(FighterRuntime a, FighterRuntime d, int baseDamage, float mult)
         {
             float comboScale = Math.Max(0.4f, 1f - 0.1f * d.ComboCount);
-            float v = baseDamage * comboScale * mult * a.Def.DamageDealtMultiplier * d.Def.DamageTakenMultiplier;
+            float v = baseDamage * comboScale * mult * a.Def.DamageDealtMultiplier * d.Def.DamageTakenMultiplier * Config.DamageDealt[a.Index];
             return Math.Max(1, (int)Math.Round(v, MidpointRounding.AwayFromZero));
         }
 

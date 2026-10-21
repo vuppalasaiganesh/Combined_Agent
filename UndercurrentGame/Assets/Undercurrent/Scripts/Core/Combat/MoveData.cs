@@ -65,6 +65,9 @@ namespace Undercurrent.Core.Combat
         /// <summary>Additional recovery frames after the last active frame during which a cancel is still accepted.</summary>
         public int CancelWindowRecovery = 6;
 
+        /// <summary>Strike delivered with a weapon (can clash with other weapon strikes).</summary>
+        public bool IsWeaponStrike;
+
         public bool IsThrow => Height == AttackHeight.Throw;
         public bool IsSpecial => Button == AttackButton.Special;
         public bool IsAirMove => Direction == MoveDirection.Air;

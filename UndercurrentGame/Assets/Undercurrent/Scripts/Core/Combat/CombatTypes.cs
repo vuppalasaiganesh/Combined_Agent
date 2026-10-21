@@ -140,6 +140,12 @@ namespace Undercurrent.Core.Combat
         MatchEnd,
         Footstep,
         BossPhaseChange,
+        /// <summary>Two weapon strikes met on the same frame; both fighters recoil.</summary>
+        Clash,
+        /// <summary>A fighter lost their weapon (guard broken or thrown while armed).</summary>
+        Disarmed,
+        /// <summary>A disarmed fighter recovered their weapon.</summary>
+        Rearmed,
     }
 
     /// <summary>

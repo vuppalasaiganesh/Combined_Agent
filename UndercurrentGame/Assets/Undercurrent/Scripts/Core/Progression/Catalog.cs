@@ -86,6 +86,10 @@ namespace Undercurrent.Core.Progression
             new AchievementDefinition { Id = "chapter1", DisplayName = "Past the Gatekeeper", Description = "Complete Chapter 1.", RewardCurrency = 200 },
             new AchievementDefinition { Id = "throws_10", DisplayName = "Freight Handler", Description = "Land 10 throws in total.", RewardCurrency = 100 },
             new AchievementDefinition { Id = "collector_5", DisplayName = "Collector", Description = "Own 5 cosmetic items.", RewardCurrency = 100 },
+            new AchievementDefinition { Id = "armory", DisplayName = "Full Armory", Description = "Unlock the knife, sword and staff.", RewardCurrency = 200 },
+            new AchievementDefinition { Id = "disarm_5", DisplayName = "Empty Hands", Description = "Disarm opponents 5 times.", RewardCurrency = 150 },
+            new AchievementDefinition { Id = "gauntlet", DisplayName = "Still Standing", Description = "Clear a gauntlet level.", RewardCurrency = 150 },
+            new AchievementDefinition { Id = "champion", DisplayName = "End of the Undercurrent", Description = "Complete the Final Championship.", RewardCurrency = 500 },
         };
 
         public static CosmeticDefinition GetCosmetic(string id)

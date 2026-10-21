@@ -19,11 +19,14 @@ namespace Undercurrent.Core.Combat
         public int PerfectRounds;
         public int SpecialsLanded;
         public int Knockdowns;
+        public int Clashes;
+        public int Disarms;
 
         public void Reset()
         {
             HitsLanded = CounterHits = AttacksBlocked = Parries = Evades = ThrowsLanded = ThrowBreaks = 0;
             MaxCombo = DamageDealt = DamageTaken = RoundsWon = PerfectRounds = SpecialsLanded = Knockdowns = 0;
+            Clashes = Disarms = 0;
         }
     }
 
@@ -44,6 +47,13 @@ namespace Undercurrent.Core.Combat
 
         public readonly int Index;
         public FighterDefinition Def { get; private set; }
+        private readonly FighterDefinition _armedDef;
+        private readonly FighterDefinition _unarmedDef;
+        /// <summary>The weapon this fighter brought (null = unarmed fighter).</summary>
+        public WeaponDefinition Weapon => _armedDef.Weapon;
+        public bool IsArmed => _armedDef.Weapon != null && ReferenceEquals(Def, _armedDef);
+        /// <summary>Ticks until a disarmed fighter recovers their weapon.</summary>
+        public int DisarmedTicks { get; private set; }
 
         // Kinematics
         public float X, Y, VX, VY;
@@ -96,6 +106,8 @@ namespace Undercurrent.Core.Combat
         {
             Index = index;
             Def = def ?? throw new ArgumentNullException(nameof(def));
+            _armedDef = def;
+            _unarmedDef = def.Weapon != null ? (def.Unarmed ?? def) : def;
         }
 
         public float HealthFraction => Def.MaxHealth <= 0 ? 0f : (float)Health / Def.MaxHealth;
@@ -196,11 +208,13 @@ namespace Undercurrent.Core.Combat
 
         // ---------------------------------------------------------------- lifecycle
 
-        internal void ResetForRound(float x, int facing)
+        internal void ResetForRound(float x, int facing, float startHealthFraction = 1f)
         {
             X = x; Y = 0f; VX = VY = 0f; SlideVelocity = 0f;
             Facing = facing;
-            Health = Def.MaxHealth;
+            Def = _armedDef;
+            DisarmedTicks = 0;
+            Health = Math.Max(1, (int)Math.Round(Def.MaxHealth * Math.Max(0.01f, Math.Min(1f, startHealthFraction))));
             HealthAtRoundStart = Health;
             Stamina = Def.MaxStamina;
             CurrentMove = null;
@@ -279,8 +293,29 @@ namespace Undercurrent.Core.Combat
 
         // ---------------------------------------------------------------- state update
 
+        /// <summary>Drops the weapon (only while stunned or knocked down, never mid-attack).</summary>
+        internal bool Disarm(FightSimulation sim, int ticks)
+        {
+            if (!IsArmed || State == FighterStateId.Attack) return false;
+            Def = _unarmedDef;
+            sim.Opponent(this).Stats.Disarms++;
+            DisarmedTicks = ticks;
+            sim.Emit(CombatEventType.Disarmed, -1, Index, Weapon.Id, ticks, X, 1f);
+            return true;
+        }
+
         internal void Tick(FightSimulation sim)
         {
+            if (DisarmedTicks > 0)
+            {
+                if (DisarmedTicks > 1) DisarmedTicks--;
+                else if (IsActionable) // timer done: pick the weapon back up once free to act
+                {
+                    DisarmedTicks = 0;
+                    Def = _armedDef;
+                    sim.Emit(CombatEventType.Rearmed, Index, -1, Weapon.Id, 0, X, 1f);
+                }
+            }
             StateFrame++;
             switch (State)
             {
@@ -599,11 +634,11 @@ namespace Undercurrent.Core.Combat
             sim.Emit(CombatEventType.Land, Index, -1, null, 0, X, Y);
         }
 
-        internal void RegenerateStamina()
+        internal void RegenerateStamina(float multiplier = 1f)
         {
             StaminaIdleFrames++;
             if (StaminaIdleFrames < Def.StaminaRegenDelay) return;
-            float rate = Def.StaminaRegen;
+            float rate = Def.StaminaRegen * multiplier;
             switch (State)
             {
                 case FighterStateId.Attack:

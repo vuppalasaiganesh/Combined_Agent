@@ -32,12 +32,24 @@ namespace Undercurrent.Core.Progression
     public static class SaveMigrator
     {
         /// <summary>Bump when the save layout changes, and add a step to <see cref="Steps"/>.</summary>
-        public const int CurrentVersion = 1;
+        public const int CurrentVersion = 2;
 
         /// <summary>Migration steps keyed by the version they upgrade FROM. Version 0 = pre-release/unversioned saves.</summary>
         private static readonly Dictionary<int, Action<SaveData>> Steps = new Dictionary<int, Action<SaveData>>
         {
             { 0, s => { /* Unversioned development saves: structure matches v1, normalisation fills gaps. */ } },
+            { 1, s =>
+                {
+                    // v2 adds weapons and star ratings: compute stars for levels cleared under v1.
+                    if (s.Levels == null) return;
+                    foreach (var lp in s.Levels)
+                    {
+                        if (lp.CompletedObjectives == null) lp.CompletedObjectives = new List<string>();
+                        var def = CampaignDatabase.GetLevel(lp.LevelId);
+                        if (def != null) lp.Stars = ProgressionService.StarsFor(def, lp);
+                    }
+                }
+            },
         };
 
         /// <summary>Upgrades in place. Returns false when the save comes from a newer build and must not be modified.</summary>
@@ -64,6 +76,8 @@ namespace Undercurrent.Core.Progression
             if (s.OwnedCosmetics == null) { s.OwnedCosmetics = new List<string>(); changed = true; }
             if (s.Levels == null) { s.Levels = new List<LevelProgress>(); changed = true; }
             if (s.UnlockedAchievements == null) { s.UnlockedAchievements = new List<string>(); changed = true; }
+            if (s.UnlockedWeapons == null) { s.UnlockedWeapons = new List<string>(); changed = true; }
+            changed |= s.UnlockedWeapons.RemoveAll(id => WeaponCatalog.Get(id) == null) > 0;
             if (s.Settings == null) { s.Settings = new SettingsData(); changed = true; }
             if (s.Settings.ControlOffsets == null) { s.Settings.ControlOffsets = new List<ControlOffset>(); changed = true; }
 
@@ -84,6 +98,7 @@ namespace Undercurrent.Core.Progression
                 if (lvl != f.Level) { f.Level = lvl; changed = true; }
                 if (!s.OwnedCosmetics.Contains(f.EquippedOutfit)) { f.EquippedOutfit = "outfit_default"; changed = true; }
                 if (!s.OwnedCosmetics.Contains(f.EquippedWraps)) { f.EquippedWraps = "wraps_white"; changed = true; }
+                if (f.EquippedWeapon == null || (f.EquippedWeapon.Length > 0 && !s.UnlockedWeapons.Contains(f.EquippedWeapon))) { f.EquippedWeapon = ""; changed = true; }
             }
             foreach (var l in s.Levels)
                 if (l.CompletedObjectives == null) { l.CompletedObjectives = new List<string>(); changed = true; }

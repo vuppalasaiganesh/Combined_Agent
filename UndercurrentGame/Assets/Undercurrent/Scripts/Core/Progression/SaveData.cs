@@ -22,6 +22,7 @@ namespace Undercurrent.Core.Progression
         public List<string> OwnedCosmetics = new List<string>();
         public List<LevelProgress> Levels = new List<LevelProgress>();
         public List<string> UnlockedAchievements = new List<string>();
+        public List<string> UnlockedWeapons = new List<string>();
 
         public int MatchesPlayed;
         public int TotalWins;
@@ -29,6 +30,8 @@ namespace Undercurrent.Core.Progression
         public int TotalThrows;
         public int TotalPerfectRounds;
         public int BestCombo;
+        public int TotalDisarms;
+        public int GauntletsCleared;
 
         public SettingsData Settings = new SettingsData();
 
@@ -73,6 +76,8 @@ namespace Undercurrent.Core.Progression
         public string EquippedOutfit = "outfit_default";
         public string EquippedWraps = "wraps_white";
         public int SkinToneIndex = -1;
+        /// <summary>Weapon brought to weapon-mode fights ("" = unarmed).</summary>
+        public string EquippedWeapon = "";
     }
 
     [Serializable]
@@ -83,6 +88,8 @@ namespace Undercurrent.Core.Progression
         public int Attempts;
         public int Wins;
         public int BestTimeSeconds;
+        /// <summary>0-3: one for the win, one per completed optional objective.</summary>
+        public int Stars;
         public List<string> CompletedObjectives = new List<string>();
     }
 

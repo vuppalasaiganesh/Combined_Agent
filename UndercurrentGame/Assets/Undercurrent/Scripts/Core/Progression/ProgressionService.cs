@@ -26,6 +26,8 @@ namespace Undercurrent.Core.Progression
         public int SpecialsLanded;
         public int DamageDealt;
         public int DamageTaken;
+        public int Clashes;
+        public int Disarms;
 
         public static MatchSummary FromSimulation(FightSimulation sim, int playerIndex)
         {
@@ -47,7 +49,26 @@ namespace Undercurrent.Core.Progression
                 SpecialsLanded = p.Stats.SpecialsLanded,
                 DamageDealt = p.Stats.DamageDealt,
                 DamageTaken = p.Stats.DamageTaken,
+                Clashes = p.Stats.Clashes,
+                Disarms = p.Stats.Disarms,
             };
+        }
+
+        /// <summary>Adds another bout's statistics (gauntlets).</summary>
+        public void Accumulate(MatchSummary bout)
+        {
+            FightSeconds += bout.FightSeconds;
+            RoundsWon += bout.RoundsWon;
+            RoundsLost += bout.RoundsLost;
+            Parries += bout.Parries;
+            Throws += bout.Throws;
+            MaxCombo = Math.Max(MaxCombo, bout.MaxCombo);
+            PerfectRounds += bout.PerfectRounds;
+            SpecialsLanded += bout.SpecialsLanded;
+            DamageDealt += bout.DamageDealt;
+            DamageTaken += bout.DamageTaken;
+            Clashes += bout.Clashes;
+            Disarms += bout.Disarms;
         }
     }
 
@@ -63,6 +84,9 @@ namespace Undercurrent.Core.Progression
         public readonly List<string> UnlockedCosmetics = new List<string>();
         public readonly List<string> UnlockedLevels = new List<string>();
         public readonly List<string> UnlockedAchievements = new List<string>();
+        public readonly List<string> UnlockedWeapons = new List<string>();
+        public int Stars;
+        public bool NewBestStars;
     }
 
     public enum PurchaseResult
@@ -130,10 +154,12 @@ namespace Undercurrent.Core.Progression
             save.TotalParries += summary.Parries;
             save.TotalThrows += summary.Throws;
             save.TotalPerfectRounds += summary.PerfectRounds;
+            save.TotalDisarms += summary.Disarms;
             if (summary.MaxCombo > save.BestCombo) save.BestCombo = summary.MaxCombo;
 
             if (summary.Result == MatchResultKind.Victory)
             {
+                if (level.IsGauntlet) save.GauntletsCleared++;
                 reward.FirstClear = !progress.Completed;
                 progress.Wins++;
                 save.TotalWins++;
@@ -163,6 +189,11 @@ namespace Undercurrent.Core.Progression
                         save.GetOrCreateFighter(level.UnlocksFighterId);
                         reward.UnlockedFighters.Add(level.UnlocksFighterId);
                     }
+                    if (!string.IsNullOrEmpty(level.UnlocksWeaponId) && !save.UnlockedWeapons.Contains(level.UnlocksWeaponId))
+                    {
+                        save.UnlockedWeapons.Add(level.UnlocksWeaponId);
+                        reward.UnlockedWeapons.Add(level.UnlocksWeaponId);
+                    }
                     if (!string.IsNullOrEmpty(level.UnlocksCosmeticId) && !save.OwnedCosmetics.Contains(level.UnlocksCosmeticId))
                     {
                         save.OwnedCosmetics.Add(level.UnlocksCosmeticId);
@@ -171,6 +202,10 @@ namespace Undercurrent.Core.Progression
                     foreach (var other in CampaignDatabase.Levels)
                         if (other.RequiresLevelId == level.Id) reward.UnlockedLevels.Add(other.Id);
                 }
+                int stars = StarsFor(level, progress);
+                reward.NewBestStars = stars > progress.Stars;
+                progress.Stars = Math.Max(progress.Stars, stars);
+                reward.Stars = stars;
             }
             else
             {
@@ -232,6 +267,22 @@ namespace Undercurrent.Core.Progression
             return reward;
         }
 
+        /// <summary>One star for clearing the level plus one per optional objective ever completed (max 3).</summary>
+        public static int StarsFor(LevelDefinition level, LevelProgress progress)
+        {
+            if (progress == null || !progress.Completed) return 0;
+            int done = 0;
+            foreach (var o in level.Objectives) if (progress.CompletedObjectives.Contains(o.Id)) done++;
+            return Math.Min(3, 1 + done);
+        }
+
+        public static int TotalStars(SaveData save)
+        {
+            int total = 0;
+            foreach (var l in save.Levels) total += l.Stars;
+            return total;
+        }
+
         public static bool IsObjectiveMet(ObjectiveDefinition obj, MatchSummary s)
         {
             if (s.Result != MatchResultKind.Victory) return false;
@@ -244,6 +295,8 @@ namespace Undercurrent.Core.Progression
                 case ObjectiveType.PerfectRound: return s.PerfectRounds > 0;
                 case ObjectiveType.LandThrows: return s.Throws >= obj.Value;
                 case ObjectiveType.LandSpecial: return s.SpecialsLanded > 0;
+                case ObjectiveType.LandClashes: return s.Clashes >= obj.Value;
+                case ObjectiveType.DisarmOpponent: return s.Disarms > 0;
                 default: return false;
             }
         }
@@ -286,6 +339,12 @@ namespace Undercurrent.Core.Progression
             Check("chapter1", chapter1);
             Check("throws_10", save.TotalThrows >= 10);
             Check("collector_5", save.OwnedCosmetics.Count >= 5);
+            Check("armory", save.UnlockedWeapons.Count >= WeaponCatalog.All.Length);
+            Check("disarm_5", save.TotalDisarms >= 5);
+            Check("gauntlet", save.GauntletsCleared >= 1);
+            bool champion = true;
+            foreach (var l in CampaignDatabase.LevelsInChapter(6)) champion &= save.IsLevelCompleted(l.Id);
+            Check("champion", champion);
             return result;
         }
 
@@ -343,6 +402,28 @@ namespace Undercurrent.Core.Progression
         /// Builds the combat definition for the player's fighter with level and skill bonuses applied.
         /// Bonuses are deliberately modest so progression helps without making skill irrelevant.
         /// </summary>
+        public static bool IsWeaponUnlocked(SaveData save, string weaponId) =>
+            string.IsNullOrEmpty(weaponId) || save.UnlockedWeapons.Contains(weaponId);
+
+        public static bool TryEquipWeapon(SaveData save, string fighterId, string weaponId)
+        {
+            weaponId = weaponId ?? "";
+            if (!IsFighterUnlocked(save, fighterId) || !IsWeaponUnlocked(save, weaponId)) return false;
+            if (weaponId.Length > 0 && WeaponCatalog.Get(weaponId) == null) return false;
+            save.GetOrCreateFighter(fighterId).EquippedWeapon = weaponId;
+            return true;
+        }
+
+        /// <summary>The player's fighter for a fight: upgrades applied, plus the equipped weapon when the rules allow one.</summary>
+        public static FighterDefinition BuildLoadout(SaveData save, string fighterId, bool weaponsAllowed)
+        {
+            var def = BuildLoadout(save, fighterId);
+            if (def == null || !weaponsAllowed) return def;
+            var weaponId = save?.GetFighter(fighterId)?.EquippedWeapon;
+            if (string.IsNullOrEmpty(weaponId) || !IsWeaponUnlocked(save, weaponId)) return def;
+            return WeaponLoadout.Apply(def, WeaponCatalog.Get(weaponId));
+        }
+
         public static FighterDefinition BuildLoadout(SaveData save, string fighterId)
         {
             var def = FighterRoster.Get(fighterId);
